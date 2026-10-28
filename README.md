@@ -2,11 +2,12 @@
 
 ![Bend Platform v2 PCB render](docs/layouts-schematics/3D_PCB1_2026-10-15.png)
 
-Adds footswitches to a guitar fuzz/distortion pedal that open and close circuit
-"bends" in a musical way. A Seeeduino XIAO (SAMD21) on the **Bend Platform v2** PCB
-drives three **AO3400A** MOSFETs. One interrupts the pedal's main LED, which is used as
-the mode indicator. The other two drive a **CD4066** analog switch that toggles or
-stutters two circuit-bend points on the pedal.
+Adds physical buttons to a circuit-bent device (a guitar fuzz/distortion pedal, for
+example) that open and close circuit "bends" in a musical way. A Seeeduino XIAO
+(SAMD21) on the **Bend Platform v2** PCB drives three **AO3400A** MOSFETs. One
+interrupts the device's main LED, which is used as the mode indicator. The other two
+drive a **CD4066** analog switch that toggles or stutters two circuit-bend points on
+the device.
 
 See [`HARDWARE-V2-NOTES.md`](HARDWARE-V2-NOTES.md) for the v2 board review notes: bend
 polarity, CD4066 limits, and power cautions.
@@ -22,7 +23,7 @@ where the controller taps in; product listing:
 ## Controls
 
 - **MODE button** — cycles through the four bend modes (1 → 2 → 3 → 4 →) and blinks the
-  pedal's main LED the mode number (1–4) so you can tell which mode you're in.
+  device's main LED the mode number (1–4) so you can tell which mode you're in.
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Modes
@@ -41,7 +42,7 @@ where the controller taps in; product listing:
 | MODE button       | D9  | MODE                                  | `INPUT_PULLUP`, to GND                  |
 | BTN-1             | D2  | BTN-1                                 | `INPUT_PULLUP`, to GND                  |
 | BTN-2             | D3  | BTN-2                                 | `INPUT_PULLUP`, to GND                  |
-| Q1 gate           | D1  | LED- pad (Q1 drain; source on GND)    | interrupts the pedal's main LED         |
+| Q1 gate           | D1  | LED- pad (Q1 drain) → device's LED+   | interrupts the device's main LED        |
 | Q3 gate           | D5  | CD4066 CONTROL A → BND-1 / BND-1-OUT  | bend 1 (BTN-1); **active LOW**          |
 | Q2 gate           | D4  | CD4066 CONTROL B → BND-2 / BND-2-OUT  | bend 2 (BTN-2); **active LOW**          |
 
@@ -59,18 +60,20 @@ on the old v1 2N7000 wiring.
 
 From the TI CD4066B datasheet:
 
-- The pedal being bent **must share ground** with the platform (the GND pad).
+- The device being bent **must share ground** with the platform (the GND pad).
 - Bend-point signals must stay **between 0 V and 9 V** relative to that ground.
 - At most **10 mA** through each switch. On-resistance is about 180–400 Ω at 9 V.
 
 ### LED interrupt (Q1)
 
-Q1 is an N-channel MOSFET used as a low-side switch: drain → the **LED-** pad, source →
-the platform's GND. Keep it **in series with** the pedal's own LED-ground switch (the
-3PDT lug), not in place of it, so the pedal still controls on/off and Q1 only blinks it:
-lift the ground wire from the 3PDT's LED common lug and run that lug to **LED-** instead.
-The LED's return path is then LED cathode → 3PDT → LED- → Q1 → GND, which relies on the
-pedal sharing ground with the platform (it must anyway, for the bends).
+The LED hack is **one wire**: run the **LED-** pad (Q1's drain) to the device's
+**LED+** (the anode, after its resistor). Leave the GND pad next to LED- unconnected.
+Q1's source is already on the platform's GND on the PCB.
+
+When D1 goes HIGH, Q1 pulls the LED's anode to ground and the LED goes dark. When D1 is
+LOW, Q1 is out of the way and the LED behaves normally, still controlled by the device's
+own switch. So the firmware rests D1 LOW and each mode blink is a short HIGH pulse. This
+relies on the device sharing ground with the platform, which it must anyway for the bends.
 
 ### Power
 
@@ -90,8 +93,21 @@ MODE -> mode 3 (latching)
 BTN-1 -> bend1 latched ON
 ```
 
-Set `#define LOG 0` to compile it out. `#define T1_TEST 1` swaps in a standalone
-slow on/off test of the Q1 LED interrupt for bench debugging.
+Set `#define LOG 0` in `config.h` to compile it out. `#define T1_TEST 1` swaps in a
+standalone slow on/off test of the Q1 LED interrupt for bench debugging.
+
+## Code layout
+
+The sketch is split into Arduino IDE tabs:
+
+| File | What's in it |
+|---|---|
+| `bend-platform-v2.ino` | Overview, global state, `setup()`, `loop()` |
+| `config.h` | Pins, bend/LED polarity, timings, `LOG` / `T1_TEST` flags, types. Settings live here. |
+| `buttons.ino` | Debounced button reading, `elapsed()` timer helper |
+| `bends.ino` | Drives the two bends in each of the four modes |
+| `mode.ino` | MODE button: steps through the modes |
+| `led.ino` | Non-blocking mode blink on the main LED, plus the Q1 bench test |
 
 ## Build
 

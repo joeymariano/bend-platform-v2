@@ -8,7 +8,7 @@ how the bends are switched. The firmware has been updated for it (`#define BOARD
 | | v1 board | v2 board |
 |---|---|---|
 | Bend switch | 2N7000 directly across the bend | **CD4066BM96** analog switch (U2, LCSC C54755), control driven by an **AO3400A** (Q2/Q3) with a 10k pull-up to 9 V |
-| LED interrupt | 2N7000 (T1) | AO3400A (Q1) low-side switch: gate D1, drain → **LED-** pad, source → GND |
+| LED interrupt | 2N7000 (T1) | AO3400A (Q1): gate D1, drain → **LED-** pad → device's LED+, source → GND |
 | Gate resistors | 220 Ω series | none |
 | Gate pull-downs | none | none (handled in software, see below) |
 | Power | — | 9 V → SS14 reverse-polarity diode → L78M05 → XIAO 5V pin |
@@ -32,8 +32,9 @@ This is done in firmware. `BEND_ON` / `BEND_OFF` are LOW / HIGH when `BOARD_V2` 
 `setSwitch()` uses them, and `setup()` starts both gates at `BEND_OFF` (HIGH). Set
 `#define BOARD_V2 0` to go back to the v1 polarity.
 
-The LED interrupt (Q1) is a plain low-side switch: its source is on the board's GND, so
-D1 HIGH = LED path closed (LED on), D1 LOW = LED dark. The pad next to **LED-** is tied to GND.
+The LED interrupt (Q1) is one wire: the **LED-** pad (Q1 drain) goes to the device's LED+
+(anode). Q1's source is on the board's GND, so D1 HIGH pulls the anode to ground (LED dark)
+and D1 LOW leaves the LED alone (LED on). The GND pad next to **LED-** is left unconnected.
 
 ## Gate pins: set them first in `setup()`
 
