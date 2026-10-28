@@ -16,7 +16,7 @@
 //   4 latching-trem   - press toggles a stuttering bend on/off
 
 // ---------- pins (per manufactured PCB) ----------
-const uint8_t PEDAL_LED = 1;   // Q1/INTRPT gate (D1) - pedal main LED, rest HIGH (on), blinked for mode
+const uint8_t PEDAL_LED = 1;   // Q1/INTRPT gate (D1) - pedal main LED, blinked for mode
 const uint8_t MODE_BTN  = 9;   // D9
 
 // Bend gate polarity. v2: gate HIGH -> AO3400A pulls the CD4066 control low -> bend OPEN,
@@ -28,10 +28,14 @@ const uint8_t BEND_ON = LOW,  BEND_OFF = HIGH;
 const uint8_t BEND_ON = HIGH, BEND_OFF = LOW;
 #endif
 
+// Q1 drain on the LED anode (resistor side): Q1 on shorts the LED dark, Q1 off lets it
+// follow the 3PDT. Rest LOW (LED on), each mode blink pulses HIGH (dark).
+const uint8_t LED_IDLE = LOW,  LED_PULSE = HIGH;
+
 // ---------- tunables ----------
 const unsigned long DEBOUNCE_MS   = 50;
-const unsigned long BLINK_DARK_MS = 500;  // pedal LED dark time per mode-blink (the visible pulse)
-const unsigned long BLINK_GAP_MS  = 500;  // gap (LED back on) between blinks
+const unsigned long BLINK_DARK_MS = 223;  // pulse time per mode-blink (the visible pulse)
+const unsigned long BLINK_GAP_MS  = 223;  // gap (LED back at rest) between blinks
 const unsigned long TREM_MS       = 60;   // momentary-tremolo interval
 const unsigned long LATCH_TREM_MS = 100;  // latching-tremolo interval
 const int NUM_MODES = 4;
@@ -67,9 +71,9 @@ Button modeBtn = { MODE_BTN, HIGH, 0, false };
 int mode = 1;
 
 // mode indicator: blink the pedal LED (T1) N times = mode number.
-// T1 rests HIGH (LED on); each blink is a dark pulse (T1 LOW). Non-blocking.
-int blinkRemaining = 0;      // dark pulses still to emit
-bool blinkDark = false;      // true while the LED is being held dark
+// T1 rests at LED_IDLE; each blink is a pulse to LED_PULSE. Non-blocking.
+int blinkRemaining = 0;      // pulses still to emit
+bool blinkDark = false;      // true while a pulse is being held
 unsigned long blinkStamp = 0;
 
 // ---------- shared helpers ----------
@@ -100,27 +104,27 @@ void tremolo(Bend &b, unsigned long interval) {
   setSwitch(b, b.tremPhase);
 }
 
-// ---------- mode-indicator blink (pedal LED / T1: HIGH = on, LOW = dark pulse) ----------
+// ---------- mode-indicator blink (pedal LED / T1: LED_IDLE = rest, LED_PULSE = pulse) ----------
 void startModeBlink(int count) {
   blinkRemaining = count;
   blinkDark = true;
   blinkStamp = millis();
-  digitalWrite(PEDAL_LED, LOW);          // begin first dark pulse (LED off)
+  digitalWrite(PEDAL_LED, LED_PULSE);    // begin first pulse
 }
 
-// advance the blink sequence without blocking; leaves the LED back ON when done
+// advance the blink sequence without blocking; leaves the LED back at rest when done
 void serviceModeBlink() {
   if (!blinkDark && blinkRemaining == 0) return;   // idle
   if (blinkDark) {
     if (millis() - blinkStamp >= BLINK_DARK_MS) {
-      digitalWrite(PEDAL_LED, HIGH);              // LED back on -> gap
+      digitalWrite(PEDAL_LED, LED_IDLE);          // LED back to rest -> gap
       blinkDark = false;
       blinkStamp = millis();
       blinkRemaining--;
     }
   } else if (blinkRemaining > 0) {
     if (millis() - blinkStamp >= BLINK_GAP_MS) {
-      digitalWrite(PEDAL_LED, LOW);               // next dark pulse
+      digitalWrite(PEDAL_LED, LED_PULSE);         // next pulse
       blinkDark = true;
       blinkStamp = millis();
     }
@@ -168,9 +172,9 @@ void t1BlinkTest() {
   if (millis() - last >= 1000) {
     last = millis();
     on = !on;
-    digitalWrite(PEDAL_LED, on ? HIGH : LOW);
+    digitalWrite(PEDAL_LED, on ? LED_IDLE : LED_PULSE);
 #if LOG
-    Serial.println(on ? "T1 HIGH -> LED on" : "T1 LOW  -> LED should go DARK");
+    Serial.println(on ? "T1 idle (rest)" : "T1 pulse");
 #endif
   }
 }
@@ -183,7 +187,7 @@ void setup() {
     digitalWrite(bends[i].sw, BEND_OFF);
     pinMode(bends[i].sw, OUTPUT);
   }
-  digitalWrite(PEDAL_LED, HIGH);   // ground leg closed -> pedal's LED works normally
+  digitalWrite(PEDAL_LED, LED_IDLE);   // LED at rest
   pinMode(PEDAL_LED, OUTPUT);
 
   Serial.begin(9600);
