@@ -26,6 +26,17 @@ where the controller taps in; product listing:
   device's main LED the mode number (1–4) so you can tell which mode you're in.
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
+### Main LED
+
+The device's own LED doubles as a status light:
+
+- **Waiting:** dim (about half brightness, set by `LED_IDLE_LEVEL`).
+- **Momentary / latching:** full brightness while either bend is engaged.
+- **Momentary-trem / latching-trem:** while a bend stutters, the LED does a soft,
+  sine-rounded pulse once per stutter cycle (25% wide), locked to the stutter. Both bends
+  share one stutter clock, so they always flip together.
+- **MODE press:** dark blinks, one per mode number. These win over the animation.
+
 ### Modes
 
 | # | Mode              | Bend button behavior                         |
@@ -72,8 +83,13 @@ Q1's source is already on the platform's GND on the PCB.
 
 When D1 goes HIGH, Q1 pulls the LED's anode to ground and the LED goes dark. When D1 is
 LOW, Q1 is out of the way and the LED behaves normally, still controlled by the device's
-own switch. So the firmware rests D1 LOW and each mode blink is a short HIGH pulse. This
-relies on the device sharing ground with the platform, which it must anyway for the bends.
+own switch. This relies on the device sharing ground with the platform, which it must
+anyway for the bends.
+
+D1 is driven by the SAMD21's TCC0 timer as PWM at about 23 kHz, above hearing, so dimming
+the LED doesn't put a whine into the audio. (Arduino's `analogWrite()` would run at about
+732 Hz.) The more of each cycle Q1 is on, the dimmer the LED. All the levels and timings
+are in `config.h`.
 
 ### Power
 
@@ -107,7 +123,7 @@ The sketch is split into Arduino IDE tabs:
 | `buttons.ino` | Debounced button reading, `elapsed()` timer helper |
 | `bends.ino` | Drives the two bends in each of the four modes |
 | `mode.ino` | MODE button: steps through the modes |
-| `led.ino` | Non-blocking mode blink on the main LED, plus the Q1 bench test |
+| `led.ino` | Main LED: ultrasonic PWM, mode blink, bend animation, Q1 bench test |
 
 ## Build
 

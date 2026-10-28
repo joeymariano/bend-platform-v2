@@ -35,6 +35,8 @@ This is done in firmware. `BEND_ON` / `BEND_OFF` are LOW / HIGH when `BOARD_V2` 
 The LED interrupt (Q1) is one wire: the **LED-** pad (Q1 drain) goes to the device's LED+
 (anode). Q1's source is on the board's GND, so D1 HIGH pulls the anode to ground (LED dark)
 and D1 LOW leaves the LED alone (LED on). The GND pad next to **LED-** is left unconnected.
+After boot, D1 runs as TCC0 PWM at about 23 kHz (see `led.ino`), so the LED can be dimmed.
+Don't `digitalWrite` D1 after that, because the pin belongs to the timer.
 
 ## Gate pins: set them first in `setup()`
 

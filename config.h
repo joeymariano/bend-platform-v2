@@ -101,10 +101,39 @@ const uint8_t BEND_ON = HIGH, BEND_OFF = LOW;
 //    Q1 on  (gate HIGH) -> the anode is pulled to ground, so the LED goes DARK
 //    Q1 off (gate LOW)  -> Q1 is out of the way and the LED behaves normally (lit when
 //                          the device's own switch has it on)
-//  The LED normally rests at LED_IDLE. Each mode blink is a short LED_PULSE, so you see a
-//  dark flicker against a lit LED.
+//
+//  After boot, D1 is driven by a fast PWM timer (led.ino), so the LED can sit anywhere
+//  between dark and full. The more of each PWM cycle Q1 spends ON, the dimmer the LED.
+//  LED_IDLE is only the plain digital level written at power-up, before the PWM starts.
 // -------------------------------------------------------------------------------------
-const uint8_t LED_IDLE = LOW, LED_PULSE = HIGH;
+const uint8_t LED_IDLE = LOW;   // Q1 off = LED lit, until ledPwmBegin() takes over
+
+// -------------------------------------------------------------------------------------
+//  Main LED animation (led.ino)
+// -------------------------------------------------------------------------------------
+//  Brightness levels are 0.0 (dark) to 1.0 (full). They're "how bright it looks", and
+//  LED_GAMMA turns them into PWM duty so 0.5 actually looks about half as bright.
+//
+//    waiting for a press   LED_IDLE_LEVEL
+//    momentary / latching  LED_ACTIVE_LEVEL while any bend is engaged
+//    the two trem modes    a soft pulse up to LED_ACTIVE_LEVEL once per stutter cycle,
+//                          TREM_PULSE_WIDTH of the cycle wide, with sine-rounded edges
+//    mode blink            dark dips (these win over everything else)
+// -------------------------------------------------------------------------------------
+const float LED_IDLE_LEVEL   = 0.5;   // Brightness while waiting for a press. Experiment:
+                                      // lower = dimmer, so the "active" jump stands out more.
+const float LED_ACTIVE_LEVEL = 1.0;   // Brightness while a bend is engaged / pulse peak.
+const float TREM_PULSE_WIDTH = 0.25;  // Trem pulse width, as a fraction of one full
+                                      // on+off stutter cycle (0.25 = 25%). Wider = softer,
+                                      // more "breathing"; narrower = a sharper blip.
+const float LED_GAMMA        = 2.2;   // Perceived-brightness correction. 1.0 = none
+                                      // (linear duty). Higher makes the low end dimmer.
+const uint32_t LED_PWM_TOP   = 2047;  // PWM counter top. The timer counts 48 MHz ticks
+                                      // from 0 to TOP, so the frequency is
+                                      // 48 MHz / (TOP + 1) = about 23.4 kHz: above hearing,
+                                      // so no whine. It also gives 2048 brightness steps.
+                                      // Keep TOP at 2399 or less (= 20 kHz or more). A
+                                      // bigger TOP lowers the frequency into the audio band.
 
 // -------------------------------------------------------------------------------------
 //  Tunables (all times in milliseconds)
@@ -162,12 +191,11 @@ struct Button {
   bool down;                 // debounced state: true = pressed
 };
 
-// One circuit bend channel: its button, the gate pin it drives, and the latch and
-// tremolo state that the modes need. bends.ino updates it.
+// One circuit bend channel: its button, the gate pin it drives, and its latch state.
+// bends.ino updates it. (The stutter timing is shared by all bends, so it lives in the
+// main tab as tremStart / tremRunning rather than in here.)
 struct Bend {
   Button button;             // the button for this bend
   uint8_t gate;              // XIAO output that drives this bend's Q gate
   bool latched;              // latching modes: is the bend toggled on?
-  bool tremPhase;            // tremolo modes: the current half of the on/off square wave
-  unsigned long lastTrem;    // millis() of the last tremolo flip
 };

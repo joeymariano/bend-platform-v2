@@ -11,9 +11,12 @@
 //    3 MOSFETs       Q1 cuts out the device's main LED, to show the mode
 //                    Q2 and Q3 drive the CD4066 analog switches that open/close the bends
 //
-//  Mode indication:
-//    Pressing MODE makes the device's main LED (normally lit) blink dark N times, where N
-//    is the new mode number (1..4). It also blinks once at power-up.
+//  The main LED (via Q1, dimmed with an ultrasonic PWM):
+//    - Waiting for a press: sits dim (about half brightness).
+//    - Momentary / latching: goes full brightness while either bend is engaged.
+//    - The two trem modes: pulses softly, in time with the stutter, while a bend stutters.
+//    - Pressing MODE: blinks dark N times, where N is the new mode number (1..4). It also
+//      blinks once at power-up. The blink wins over the animation while it runs.
 //
 //  Bend modes (cycled by MODE):
 //    1 momentary       the bend is on while the button is held
@@ -27,7 +30,7 @@
 //    buttons.ino           debounced button reading + the elapsed() timer helper
 //    bends.ino             drives the bend switches in each of the four modes
 //    mode.ino              MODE button: steps through the modes
-//    led.ino               non-blocking mode blink on the main LED + the Q1 bench test
+//    led.ino               main LED: ultrasonic PWM, mode blink, bend animation, bench test
 //
 //  How the tabs fit together:
 //    Arduino builds this tab first, then the other .ino tabs in alphabetical order, and
@@ -47,19 +50,29 @@
 // -------------------------------------------------------------------------------------
 
 // The two bend channels. Initializer order follows the Bend / Button structs in config.h:
-//   { { button pin, lastRead, lastChange, down }, gate pin, latched, tremPhase, lastTrem }
+//   { { button pin, lastRead, lastChange, down }, gate pin, latched }
 // lastRead starts HIGH because a released button reads HIGH with INPUT_PULLUP.
 Bend bends[NUM_BENDS] = {
-  { { BTN1_PIN, HIGH, 0, false }, Q3_GATE, false, false, 0 },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
-  { { BTN2_PIN, HIGH, 0, false }, Q2_GATE, false, false, 0 },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
+  { { BTN1_PIN, HIGH, 0, false }, Q3_GATE, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
+  { { BTN2_PIN, HIGH, 0, false }, Q2_GATE, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
 };
 
 Button modeBtn = { MODE_BTN, HIGH, 0, false };  // the MODE button
 int mode = MOMENTARY;                            // current bend mode (1..NUM_MODES)
 
+// Shared stutter clock, used by bends.ino (to flip the bends) and led.ino (to pulse the
+// LED in sync). One clock for everything is what keeps them lined up.
+unsigned long tremStart = 0;     // millis() when the current stutter began
+bool tremRunning = false;        // was any bend stuttering on the previous loop?
+
+// What the bends are doing *this* loop. serviceBends() rebuilds these on every pass, and
+// led.ino reads them to choose the LED animation.
+bool anyEngaged = false;         // at least one bend gate is on
+bool anyStuttering = false;      // at least one bend is in a stutter
+
 // Mode-blink sequencer state, used by led.ino.
 int blinkRemaining = 0;          // blinks still to finish (counts the one in progress)
-bool blinkPulsing = false;       // true while the LED is held dark for a blink
+bool blinkPulsing = false;       // true while the LED should be held dark for a blink
 unsigned long blinkStamp = 0;    // millis() when the current pulse or gap began
 
 // -------------------------------------------------------------------------------------
@@ -76,6 +89,7 @@ void setup() {
   }
   digitalWrite(MAIN_LED, LED_IDLE);          // LED at rest (Q1 off, LED behaves normally)
   pinMode(MAIN_LED, OUTPUT);
+  ledPwmBegin();                             // hand D1 to the ultrasonic PWM timer (led.ino)
 
   Serial.begin(9600);                        // for the event log (see LOG in config.h)
 
@@ -102,8 +116,10 @@ void loop() {
   return;
 #endif
 
-  // Each call does a small slice of work and returns right away (see led.ino / bends.ino).
-  for (int i = 0; i < NUM_BENDS; i++) serviceBend(bends[i], i);  // read BTN-n, drive bend n
-  serviceMode();        // read MODE, step to the next mode, start the blink
-  serviceModeBlink();   // move the LED blink sequence along
+  // Each call does a small slice of work and returns right away. Order matters a little:
+  // the bends run first so the LED sees this loop's engaged / stuttering state.
+  serviceBends();       // read BTN-1 / BTN-2, drive both bends (bends.ino)
+  serviceMode();        // read MODE, step to the next mode, start the blink (mode.ino)
+  serviceModeBlink();   // move the mode-blink sequence along (led.ino)
+  serviceLed();         // pick this loop's LED brightness and write it (led.ino)
 }
