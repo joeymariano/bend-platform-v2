@@ -109,8 +109,7 @@ MODE -> mode 3 (latching)
 BTN-1 -> bend1 latched ON
 ```
 
-Set `#define LOG 0` in `config.h` to compile it out. `#define T1_TEST 1` swaps in a
-standalone slow on/off test of the Q1 LED interrupt for bench debugging.
+Set `#define LOG 0` in `config.h` to compile it out.
 
 ## Code layout
 
@@ -119,11 +118,11 @@ The sketch is split into Arduino IDE tabs:
 | File | What's in it |
 |---|---|
 | `bend-platform-v2.ino` | Overview, global state, `setup()`, `loop()` |
-| `config.h` | Pins, bend/LED polarity, timings, `LOG` / `T1_TEST` flags, types. Settings live here. |
+| `config.h` | Pins, bend/LED polarity, timings, `LOG` flag, types. Settings live here. |
 | `buttons.ino` | Debounced button reading, `elapsed()` timer helper |
 | `bends.ino` | Drives the two bends in each of the four modes |
 | `mode.ino` | MODE button: steps through the modes |
-| `led.ino` | Main LED: ultrasonic PWM, mode blink, bend animation, Q1 bench test |
+| `led.ino` | Main LED: ultrasonic PWM, mode blink, bend animation |
 
 ## Build
 

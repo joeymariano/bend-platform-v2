@@ -30,7 +30,7 @@
 //    buttons.ino           debounced button reading + the elapsed() timer helper
 //    bends.ino             drives the bend switches in each of the four modes
 //    mode.ino              MODE button: steps through the modes
-//    led.ino               main LED: ultrasonic PWM, mode blink, bend animation, bench test
+//    led.ino               main LED: ultrasonic PWM, mode blink, bend animation
 //
 //  How the tabs fit together:
 //    Arduino builds this tab first, then the other .ino tabs in alphabetical order, and
@@ -111,11 +111,6 @@ void setup() {
 //  loop()  -  runs forever, as fast as it can
 // -------------------------------------------------------------------------------------
 void loop() {
-#if T1_TEST
-  t1BlinkTest();   // bench mode: only toggle Q1. Set T1_TEST 0 in config.h to play.
-  return;
-#endif
-
   // Each call does a small slice of work and returns right away. Order matters a little:
   // the bends run first so the LED sees this loop's engaged / stuttering state.
   serviceBends();       // read BTN-1 / BTN-2, drive both bends (bends.ino)

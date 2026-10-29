@@ -225,25 +225,3 @@ void serviceLed() {
 
   setLedBrightness(level);
 }
-
-// -------------------------------------------------------------------------------------
-//  t1BlinkTest()  -  bench test, only runs when T1_TEST is 1 (config.h)
-// -------------------------------------------------------------------------------------
-//  Swaps Q1 between fully off and fully on once a second (1 s lit, 1 s dark), so you can
-//  check by eye that the LED hack is wired up. loop() calls only this while the test is
-//  on. It goes through the PWM like everything else, so it also proves the timer setup
-//  works. (The name T1_TEST is the older label for Q1. It's kept because the README
-//  documents it.)
-// -------------------------------------------------------------------------------------
-void t1BlinkTest() {
-  static unsigned long last = 0;   // `static` keeps the value between calls
-  static bool lit = true;          // true = LED at full brightness
-
-  if (elapsed(last, 1000)) {
-    lit = !lit;
-    setLedBrightness(lit ? 1.0f : 0.0f);
-#if LOG
-    Serial.println(lit ? "T1 lit (Q1 off)" : "T1 dark (Q1 on)");
-#endif
-  }
-}

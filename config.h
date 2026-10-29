@@ -153,12 +153,10 @@ const unsigned long LATCH_TREM_MS  = 100;  // Latching-trem: the same idea, a bi
                                            // (about 5 Hz).
 
 // -------------------------------------------------------------------------------------
-//  Debug / bench flags (compile-time, so nothing is left in the build when set to 0)
+//  Debug flags (compile-time, so nothing is left in the build when set to 0)
 // -------------------------------------------------------------------------------------
 #define LOG 1        // 1 = print an event log over Serial at 9600 baud
                      //     (for example "MODE -> mode 3 (latching)").
-#define T1_TEST 0    // 1 = skip normal operation and just toggle Q1 every second, so you
-                     //     can watch the main LED being cut out. Set back to 0 when done.
 
 // -------------------------------------------------------------------------------------
 //  Bend modes
