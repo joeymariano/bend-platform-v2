@@ -63,19 +63,12 @@ const int NUM_BENDS = 2;
 // -------------------------------------------------------------------------------------
 //  Bend polarity
 // -------------------------------------------------------------------------------------
-//  v2: gate HIGH -> Q on -> CD4066 control pulled low -> switch OPEN  -> bend off
-//      gate LOW  -> Q off -> control pulled to 9 V    -> switch CLOSED -> bend on
-//      So v2 bends are active-LOW.
-//  v1: a 2N7000 sat across the bend, so gate HIGH = bend on.
+//  gate HIGH -> Q on  -> CD4066 control pulled low -> switch OPEN   -> bend off
+//  gate LOW  -> Q off -> control pulled to 9 V     -> switch CLOSED -> bend on
 //
-//  Set BOARD_V2 to 0 for the v1 board. Always write BEND_ON / BEND_OFF, never HIGH/LOW.
+//  So bends are active-LOW. Always write BEND_ON / BEND_OFF, never HIGH/LOW.
 // -------------------------------------------------------------------------------------
-#define BOARD_V2 1
-#if BOARD_V2
-const uint8_t BEND_ON = LOW,  BEND_OFF = HIGH;
-#else
-const uint8_t BEND_ON = HIGH, BEND_OFF = LOW;
-#endif
+const uint8_t BEND_ON = LOW, BEND_OFF = HIGH;
 
 // -------------------------------------------------------------------------------------
 //  Main LED polarity (Q1)

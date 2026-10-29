@@ -13,20 +13,21 @@ Product: [Build Your Own Fuzz Pedal — 1590B Aluminum Stomp Box (B06XQL49G8)](h
 - **3PDT footswitch, true bypass**
 - Runs on a **9 V battery** or a standard **negative-tip 9 V** supply
 - Numbered PCB (each part has a matching number on the board)
-- Controls: **Volume (VOL)** and **Drive (DRV)** — see the enclosure SVGs in `docs/drill template/`
+- Controls: **Volume (VOL)** and **Drive (DRV)** — see the enclosure SVGs in `docs/drill-template/`
 
 ## How this project ties in
 
-The XIAO controller board taps three points on the assembled pedal:
+The Bend Platform v2 board taps three points on the assembled pedal:
 
-- **T1 / INTRPT** → interrupts the pedal's **main LED** (in series with the 3PDT's
-  LED-ground return), used here as the mode indicator.
-- **T2 / BND-1** and **T3 / BND-2** → two circuit-**bend** points on the fuzz PCB.
+- **Q1 / LED-** → one wire to the pedal's **LED+** (anode). Q1 dims or darkens the
+  main LED, used here as a status light.
+- **BND-1** and **BND-2** → two circuit-**bend** points on the fuzz PCB, switched by the
+  CD4066.
 
 See the repo-root `README.md` for the pin map and wiring notes, and
 `Landtone-Fuzz-Wiring.jpg` in this folder for how the stock pedal is wired.
 
 ## Photos
 
-Your own build photos are in `docs/prototype wiring pictures/`.
+Build photos are in `docs/prototype-wiring/`.
 `Landtone-Fuzz-Wiring.jpg` here is a stock wiring reference for the kit.

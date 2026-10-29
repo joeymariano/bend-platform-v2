@@ -1,17 +1,16 @@
 # Bend Platform v2: firmware notes
 
-Notes from the v2 PCB review (`bend Platform-v2.eprj`, Oct 2026). The v2 board changes
-how the bends are switched. The firmware has been updated for it (`#define BOARD_V2 1`).
+Notes from the v2 PCB review (`bend Platform-v2.eprj`, Oct 2026).
 
-## What changed in hardware
+## Hardware
 
-| | v1 board | v2 board |
-|---|---|---|
-| Bend switch | 2N7000 directly across the bend | **CD4066BM96** analog switch (U2, LCSC C54755), control driven by an **AO3400A** (Q2/Q3) with a 10k pull-up to 9 V |
-| LED interrupt | 2N7000 (T1) | AO3400A (Q1): gate D1, drain → **LED-** pad → device's LED+, source → GND |
-| Gate resistors | 220 Ω series | none |
-| Gate pull-downs | none | none (handled in software, see below) |
-| Power | — | 9 V → SS14 reverse-polarity diode → L78M05 → XIAO 5V pin |
+| | |
+|---|---|
+| Bend switch | **CD4066BM96** analog switch (U2, LCSC C54755), control driven by an **AO3400A** (Q2/Q3) with a 10k pull-up to 9 V |
+| LED interrupt | AO3400A (Q1): gate D1, drain → **LED-** pad → device's LED+, source → GND |
+| Gate resistors | none |
+| Gate pull-downs | none (handled in software, see below) |
+| Power | 9 V → SS14 reverse-polarity diode → L78M05 → XIAO 5V pin |
 
 Pin map: BTN-1 = D2, BTN-2 = D3, MODE = D9, Q1 = D1.
 
@@ -19,7 +18,7 @@ On the PCB, D5 → Q3 → CD4066 switch A → the **BND-1** pads, and D4 → Q2 
 **BND-2** pads. The firmware's `bends[]` array is ordered to match, so BTN-1 works BND-1 and
 BTN-2 works BND-2.
 
-## ⚠️ Bend logic is inverted on v2
+## ⚠️ Bend logic is inverted
 
 The AO3400A pulls the CD4066 control pin low when its gate is high:
 
@@ -28,9 +27,8 @@ The AO3400A pulls the CD4066 control pin low when its gate is high:
 | **HIGH** | on | pulled to 0 V | **OPEN (bend off)** |
 | **LOW** | off | pulled to 9 V by 10k | **CLOSED (bend on)** |
 
-This is done in firmware. `BEND_ON` / `BEND_OFF` are LOW / HIGH when `BOARD_V2` is 1,
-`setSwitch()` uses them, and `setup()` starts both gates at `BEND_OFF` (HIGH). Set
-`#define BOARD_V2 0` to go back to the v1 polarity.
+This is done in firmware. `BEND_ON` / `BEND_OFF` are LOW / HIGH in `config.h`,
+`setSwitch()` uses them, and `setup()` starts both gates at `BEND_OFF` (HIGH).
 
 The LED interrupt (Q1) is one wire: the **LED-** pad (Q1 drain) goes to the device's LED+
 (anode). Q1's source is on the board's GND, so D1 HIGH pulls the anode to ground (LED dark)

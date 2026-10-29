@@ -77,7 +77,9 @@ void setup() {
   pinMode(MAIN_LED, OUTPUT);
   ledPwmBegin();                             // the PWM timer takes over D1 (led.ino)
 
-  Serial.begin(9600);                        // event log (LOG in config.h)
+#if LOG
+  Serial.begin(9600);                        // event log
+#endif
 
   // Buttons connect to ground: HIGH = released, LOW = pressed.
   for (int i = 0; i < NUM_BENDS; i++) pinMode(bends[i].button.pin, INPUT_PULLUP);

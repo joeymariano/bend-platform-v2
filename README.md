@@ -66,8 +66,7 @@ The firmware sets the gate pins first thing in `setup()`. The buttons pull to GN
 
 Each bend is a CD4066 switch. Q2 and Q3 pull its control pin low against a 10k pull-up
 to 9 V, so the logic is inverted: **gate HIGH = bend open, gate LOW = bend closed**.
-The firmware handles this with `BEND_ON` / `BEND_OFF`. Set `#define BOARD_V2 0` to run
-on the old v1 2N7000 wiring.
+The firmware handles this with `BEND_ON` / `BEND_OFF` in `config.h`.
 
 From the TI CD4066B datasheet:
 
@@ -138,15 +137,16 @@ reselect the port.
 
 ## Repo contents
 
-- `bend-platform-v2.ino` — the firmware (single file)
+- `*.ino`, `config.h` — the firmware (see Code layout above)
 - `HARDWARE-V2-NOTES.md` — Bend Platform v2 board review and firmware notes
-- `docs/layouts-schematics/prototype/` — v1 prototype schematics (PDF) and EasyEDA
-  project (`bend Platform.eprj`). The v2 project (`bend Platform-v2.eprj`) lives in
-  the EasyEDA Pro projects folder.
+- `docs/layouts-schematics/` — v2 schematic, 3D render, Gerbers, BOM and pick-and-place.
+  The EasyEDA Pro project (`bend Platform-v2.eprj`) lives in the EasyEDA Pro projects
+  folder.
 - `docs/drill-template/` — enclosure / faceplate layout SVGs
 - `docs/bend-locations/` — annotated photos of the bend points on the fuzz
-- `docs/parts-data/chips/` — CD4066B, XIAO and op-amp datasheets
-- `docs/parts-data/transistors/` — AO3400A and 2N7000 datasheets / pinouts
+- `docs/parts-data/chip/` — CD4066B datasheet
+- `docs/parts-data/micro-controller/` — SAMD21 datasheet
+- `docs/parts-data/transistors/` — AO3400A datasheet
 - `docs/parts-data/landtone-kit/` — notes on the LANDTONE fuzz kit used to prototype
 - `docs/prototype-wiring/` — build photos
 - `docs/art/` — sticker artwork
