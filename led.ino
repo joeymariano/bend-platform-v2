@@ -28,6 +28,11 @@
 
 #include "wiring_private.h"   // pinPeripheral()
 
+// Mode-blink state.
+int blinkRemaining = 0;          // blinks left, including the one in progress
+bool blinkPulsing = false;       // true while the LED is dark for a blink
+unsigned long blinkStamp = 0;    // millis() when the current blink or gap began
+
 // -------------------------------------------------------------------------------------
 //  ledPwmBegin()  -  call once in setup()
 // -------------------------------------------------------------------------------------
@@ -154,7 +159,7 @@ void serviceLed() {
 
   if (blinkPulsing) {
     level = 0.0f;                                   // 1. blink: dark
-  } else if (mode == MOMENTARY_TREM || mode == LATCHING_TREM) {
+  } else if (isTremMode()) {
     level = anyStuttering ? tremPulseLevel()        // 2. stuttering: pulse
                           : LED_IDLE_LEVEL;         //    waiting
   } else {

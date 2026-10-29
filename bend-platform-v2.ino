@@ -45,11 +45,11 @@
 //  Global state (shared across tabs)
 // -------------------------------------------------------------------------------------
 
-// Fields: { { button pin, lastRead, lastChange, down }, gate pin, latched }
+// Fields: { { button pin, lastRead, lastChange, down }, gate pin, latched, on, stuttering }
 // lastRead starts HIGH: a released button reads HIGH with INPUT_PULLUP.
 Bend bends[NUM_BENDS] = {
-  { { BTN1_PIN, HIGH, 0, false }, Q3_GATE, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
-  { { BTN2_PIN, HIGH, 0, false }, Q2_GATE, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
+  { { BTN1_PIN, HIGH, 0, false }, Q3_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
+  { { BTN2_PIN, HIGH, 0, false }, Q2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
 };
 
 Button modeBtn = { MODE_BTN, HIGH, 0, false };
@@ -62,11 +62,6 @@ bool tremRunning = false;        // was any bend stuttering on the previous loop
 // What the bends are doing this loop. Rebuilt by serviceBends(), read by led.ino.
 bool anyEngaged = false;         // at least one bend is on
 bool anyStuttering = false;      // at least one bend is stuttering
-
-// Mode-blink state (led.ino).
-int blinkRemaining = 0;          // blinks left, including the one in progress
-bool blinkPulsing = false;       // true while the LED is dark for a blink
-unsigned long blinkStamp = 0;    // millis() when the current blink or gap began
 
 // -------------------------------------------------------------------------------------
 //  setup()  -  runs once at power-up
@@ -90,9 +85,8 @@ void setup() {
 
 #if LOG
   Serial.println("bend-platform-v2 ready");
-  Serial.print("mode "); Serial.print(mode);
-  Serial.print(" ("); Serial.print(MODE_NAMES[mode]); Serial.println(")");
 #endif
+  logMode("mode ");
 
   startModeBlink(mode);   // blink the starting mode: shows the board is alive
 }

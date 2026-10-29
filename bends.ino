@@ -11,11 +11,9 @@
 //  setSwitch(b, on)  -  the only place that writes a bend gate
 // -------------------------------------------------------------------------------------
 //  Turns bend `b` on or off, using BEND_ON / BEND_OFF for the board's polarity.
-//  Also sets anyEngaged when a bend is on.
 // -------------------------------------------------------------------------------------
 void setSwitch(Bend &b, bool on) {
   digitalWrite(b.gate, on ? BEND_ON : BEND_OFF);
-  if (on) anyEngaged = true;
 }
 
 // -------------------------------------------------------------------------------------
@@ -28,36 +26,36 @@ unsigned long tremInterval() {
 }
 
 // -------------------------------------------------------------------------------------
-//  tremolo(b, interval)  -  stutter bend `b`: on `interval` ms, off `interval` ms
+//  tremPhaseOn()  -  is the shared stutter clock in its "on" half right now?
 // -------------------------------------------------------------------------------------
 //  All bends share one clock (tremStart):
 //    - The first bend to stutter starts the clock, on the "on" half, so it cuts in at once.
 //    - A bend that joins later uses the same clock, so both flip together.
 //    - The LED pulse uses it too, so it lines up with the bends.
 // -------------------------------------------------------------------------------------
-void tremolo(Bend &b, unsigned long interval) {
+bool tremPhaseOn() {
   if (!tremRunning) {          // first to stutter: start the clock
     tremStart = millis();
     tremRunning = true;
   }
-  anyStuttering = true;
-
-  bool on = ((millis() - tremStart) / interval) % 2 == 0;   // even half = on
-  setSwitch(b, on);
+  return ((millis() - tremStart) / tremInterval()) % 2 == 0;   // even half = on
 }
 
 // -------------------------------------------------------------------------------------
 //  serviceBends()  -  called once per loop
 // -------------------------------------------------------------------------------------
-//  Clears anyEngaged / anyStuttering, lets every bend set them again, then remembers
-//  whether a stutter is running. Once every bend stops, the clock restarts on the
-//  next stutter.
+//  Drives every bend, then sums up what they're doing for led.ino. Once no bend is
+//  stuttering, the clock restarts on the next stutter.
 // -------------------------------------------------------------------------------------
 void serviceBends() {
   anyEngaged = false;
   anyStuttering = false;
 
-  for (int i = 0; i < NUM_BENDS; i++) serviceBend(bends[i], i);
+  for (int i = 0; i < NUM_BENDS; i++) {
+    serviceBend(bends[i], i);
+    if (bends[i].on)         anyEngaged = true;
+    if (bends[i].stuttering) anyStuttering = true;
+  }
 
   tremRunning = anyStuttering;
 }
@@ -65,40 +63,29 @@ void serviceBends() {
 // -------------------------------------------------------------------------------------
 //  serviceBend(b, idx)  -  read one bend's button and drive it for the current mode
 // -------------------------------------------------------------------------------------
+//  Two questions decide everything:
+//    wanted?   momentary modes: is the button held?  latching modes: is it toggled on?
+//    stutter?  in the trem modes, a wanted bend follows the stutter clock
+//
 //  The gate is written on every pass, so a mode change takes effect at once.
 //  `latched` is kept across mode changes. `idx` is only used for the log.
 // -------------------------------------------------------------------------------------
 void serviceBend(Bend &b, int idx) {
   bool justPressed = pressed(b.button);   // also updates b.button.down
 
-  switch (mode) {
-    case MOMENTARY:
-      setSwitch(b, b.button.down);
-      break;
+  if (isLatchingMode() && justPressed) b.latched = !b.latched;
 
-    case MOMENTARY_TREM:
-      if (b.button.down) tremolo(b, tremInterval());
-      else               setSwitch(b, false);
-      break;
-
-    case LATCHING:
-      if (justPressed) b.latched = !b.latched;
-      setSwitch(b, b.latched);
-      break;
-
-    case LATCHING_TREM:
-      if (justPressed) b.latched = !b.latched;
-      if (b.latched) tremolo(b, tremInterval());
-      else           setSwitch(b, false);
-      break;
-  }
+  bool wanted = isLatchingMode() ? b.latched : b.button.down;
+  b.stuttering = wanted && isTremMode();
+  b.on = b.stuttering ? tremPhaseOn() : wanted;
+  setSwitch(b, b.on);
 
 #if LOG
   // e.g. "BTN-1 -> bend1 latched ON" or "BTN-2 -> bend2 momentary"
   if (justPressed) {
     Serial.print("BTN-"); Serial.print(idx + 1);
     Serial.print(" -> bend"); Serial.print(idx + 1);
-    if (mode >= LATCHING) Serial.println(b.latched ? " latched ON" : " latched OFF");
+    if (isLatchingMode()) Serial.println(b.latched ? " latched ON" : " latched OFF");
     else { Serial.print(' '); Serial.println(MODE_NAMES[mode]); }
   }
 #endif

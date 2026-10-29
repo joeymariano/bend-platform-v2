@@ -141,10 +141,12 @@ struct Button {
   bool down;                 // debounced: true = pressed
 };
 
-// One bend: its button, its gate pin, and its latch state. (The stutter clock is
+// One bend: its button, its gate pin, and what it's doing. (The stutter clock is
 // shared by all bends, so it lives in the main tab.)
 struct Bend {
   Button button;
   uint8_t gate;              // output pin to this bend's Q gate
   bool latched;              // latching modes: toggled on?
+  bool on;                   // is the gate on this loop? (set by serviceBend)
+  bool stuttering;           // is it stuttering this loop? (set by serviceBend)
 };
