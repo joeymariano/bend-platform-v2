@@ -1,131 +1,92 @@
 // =====================================================================================
-//  led.ino  -  the device's main LED (via Q1): PWM dimming, mode blink, bend animation
+//  led.ino  -  the device's LED (via Q1): dimming, mode blink, bend animation
 // =====================================================================================
 //
-//  There's no separate status LED. Q1 is wired to the device's own LED+ and can pull it
-//  to ground, which darkens it. Switching Q1 on and off very fast (PWM) means it can sit
-//  at any brightness in between. This tab turns that into a status display.
+//  Q1 can pull the device's LED to ground. Switching it fast (PWM) sets any brightness.
 //
 //  What the LED shows, highest priority first:
+//    1. mode blink    N dark blinks for mode N
+//    2. trem modes    a soft pulse at the start of each stutter cycle
+//    3. other modes   full while either bend is on
+//    4. waiting       dim (LED_IDLE_LEVEL)
 //
-//    1. Mode blink       dark dips, N of them for mode N (after a MODE press, or at boot)
-//    2. Trem modes       while a bend stutters: a soft pulse once per stutter cycle,
-//                        locked to the same clock the bends use
-//    3. Momentary/latch  full brightness while either bend is engaged
-//    4. Waiting          dim (LED_IDLE_LEVEL)
-//
-//  Mode-blink timeline for mode 3 (# = dark, . = normal brightness):
+//  Mode blink for mode 3 (# = dark, . = animation):
 //
 //      ###...###...###      then back to the animation
 //      |-| BLINK_PULSE_MS
 //         |-| BLINK_GAP_MS
 //
-//  Trem pulse, one stutter cycle (2 x the mode's stutter interval):
+//  Trem pulse over one stutter cycle:
 //
-//      bend:  |^^^^^^^^^^^^^|_____________|^^^^...     on half, off half
-//      LED:   _/^^\________________________/^^...      raised-cosine bump, 25% wide
+//      bend:  |^^^^^^^^^^^^^|_____________|^^^^...
+//      LED:   _/^^\________________________/^^...
 //             |<->| TREM_PULSE_WIDTH x cycle
 //
-//  The bump starts at the same instant the bend cuts in. It rises and falls along a
-//  cosine curve, so there are no hard edges.
-//
-//  How the pieces fit:
-//    - ledPwmBegin() hands D1 to the SAMD21's TCC0 timer at about 23 kHz (above hearing).
-//    - setLedBrightness() is the ONLY function that writes the LED after that.
-//    - serviceModeBlink() just keeps time for the blink. It doesn't touch the pin.
-//    - serviceLed() picks a brightness each loop and calls setLedBrightness().
-//
-//  Note: if the device's own switch has the LED off, Q1 has nothing to darken or dim, so
-//  none of this is visible. The bends and modes still work.
-//
-//  State (main tab): blinkRemaining, blinkPulsing, blinkStamp, tremStart, anyEngaged,
-//                    anyStuttering
-//  Writes: MAIN_LED (Q1 gate), through TCC0
+//  If the device's own switch has the LED off, none of this shows. The bends still work.
 //
 // =====================================================================================
 
-#include "wiring_private.h"   // pinPeripheral(): lets a pin be driven by a timer
+#include "wiring_private.h"   // pinPeripheral()
 
 // -------------------------------------------------------------------------------------
-//  ledPwmBegin()  -  call once in setup(), after D1 has been set to a safe level
+//  ledPwmBegin()  -  call once in setup()
 // -------------------------------------------------------------------------------------
-//  Arduino's analogWrite() on this chip runs at about 732 Hz. That's in the audio band,
-//  and Q1 switches the LED's current on the device's own power, so it could leak in as a
-//  whine. Instead we set the timer up by hand:
+//  analogWrite() runs at about 732 Hz, which could leak into the audio as a whine. So
+//  TCC0 is set up by hand at 48 MHz / (LED_PWM_TOP + 1) = 23.4 kHz. Output D1 (PA04 =
+//  TCC0/WO[0]) is HIGH (Q1 on = dark) from the start of each cycle until the count
+//  reaches CC[0].
 //
-//    clock    48 MHz (GCLK0, the main clock), no prescaler
-//    mode     "normal PWM": the counter runs 0..LED_PWM_TOP, then wraps
-//    output   D1 (PA04) is TCC0 output WO[0]. It goes HIGH (Q1 on = dark) when the
-//             counter wraps, and LOW (Q1 off = lit) when the counter reaches CC[0]
-//    result   48 MHz / (LED_PWM_TOP + 1) = about 23.4 kHz, and CC[0] sets how dark it is
-//
-//  Nothing else in this sketch uses TCC0 (the bend gates are plain digital outputs).
-//  Every SYNCBUSY wait is there because the timer runs in its own clock domain, so a
-//  register write isn't finished until it has synced across.
+//  The SYNCBUSY waits let each register write finish (the timer has its own clock).
 // -------------------------------------------------------------------------------------
 void ledPwmBegin() {
-  // 1. Feed the 48 MHz main clock to TCC0 (TCC0 and TCC1 share one clock channel).
-  //    The timer's bus clock (APB) is already switched on by the Arduino core at boot.
+  // Feed the 48 MHz main clock to TCC0.
   GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID_TCC0_TCC1;
   while (GCLK->STATUS.bit.SYNCBUSY);
 
-  // 2. Make sure the timer is stopped while we configure it.
+  // Stop the timer while configuring it.
   TCC0->CTRLA.bit.ENABLE = 0;
   while (TCC0->SYNCBUSY.bit.ENABLE);
 
-  // 3. No prescaler: count at the full 48 MHz.
+  // No prescaler.
   TCC0->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV1;
 
-  // 4. Single-slope "normal PWM" waveform.
+  // Normal (single-slope) PWM.
   TCC0->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM;
   while (TCC0->SYNCBUSY.bit.WAVE);
 
-  // 5. Counter top. This sets the PWM frequency (see LED_PWM_TOP in config.h).
+  // Counter top: sets the frequency.
   TCC0->PER.reg = LED_PWM_TOP;
   while (TCC0->SYNCBUSY.bit.PER);
 
-  // 6. Starting duty: the idle brightness, so the LED doesn't jump when the timer takes over.
+  // Start at idle brightness, so the LED doesn't jump.
   TCC0->CC[0].reg = brightnessToDuty(LED_IDLE_LEVEL);
   while (TCC0->SYNCBUSY.bit.CC0);
 
-  // 7. Go. Then hand the pin from plain digital output to the timer. Doing it in this
-  //    order means the pin switches straight onto a running, correctly set waveform.
+  // Start the timer, then hand it the pin, so the pin joins a running waveform.
   TCC0->CTRLA.bit.ENABLE = 1;
   while (TCC0->SYNCBUSY.bit.ENABLE);
-  pinPeripheral(MAIN_LED, PIO_TIMER);   // PA04 -> peripheral function E = TCC0/WO[0]
+  pinPeripheral(MAIN_LED, PIO_TIMER);
 }
 
 // -------------------------------------------------------------------------------------
-//  brightnessToDuty(b)
+//  brightnessToDuty(b)  -  brightness (0.0..1.0) to the timer's compare value
 // -------------------------------------------------------------------------------------
-//  Converts "how bright it should look" (0.0 dark .. 1.0 full) into the timer compare
-//  value: the number of counts per PWM cycle that Q1 spends ON (dark).
-//
-//    1. clamp b to 0..1, so a slightly-off calculation can't overflow the register
-//    2. gamma: eyes see brightness non-linearly. b^2.2 is the fraction of time the LED
-//       should actually be lit for it to *look* like b.
-//    3. Q1 ON means dark, so the dark time is (1 - lit fraction).
-//
-//  The result runs from 0 (Q1 never on = full) to LED_PWM_TOP + 1 (Q1 always on =
-//  dark). A compare value past the top keeps the output HIGH for the whole cycle.
+//  Clamps b, applies gamma (so 0.5 looks half as bright), then inverts, because Q1 on
+//  means dark. Returns 0 (full) up to LED_PWM_TOP + 1 (dark).
 // -------------------------------------------------------------------------------------
 uint32_t brightnessToDuty(float b) {
   if (b < 0.0f) b = 0.0f;
   if (b > 1.0f) b = 1.0f;
   float lit = powf(b, LED_GAMMA);
-  return (uint32_t)((1.0f - lit) * (LED_PWM_TOP + 1) + 0.5f);   // +0.5 = round to nearest
+  return (uint32_t)((1.0f - lit) * (LED_PWM_TOP + 1) + 0.5f);   // round to nearest
 }
 
 // -------------------------------------------------------------------------------------
-//  setLedBrightness(b)  -  the ONE place that drives the LED once the PWM is running
+//  setLedBrightness(b)  -  the only place that writes the LED after ledPwmBegin()
 // -------------------------------------------------------------------------------------
-//  Don't use digitalWrite(MAIN_LED, ...) after ledPwmBegin(). The pin now belongs to the
-//  timer, and digitalWrite would silently do nothing.
-//
-//  The value goes into the *buffered* compare register (CCB). The timer copies it in at
-//  the end of the current PWM cycle, so a change never cuts a cycle short (no glitch).
-//  The last value is cached, because loop() calls this thousands of times a second and
-//  most of the time the brightness hasn't changed.
+//  (digitalWrite() no longer works on D1 once the timer owns it.)
+//  Writes the buffered register (CCB), which takes effect at the end of the current
+//  cycle, so there's no glitch. Skips the write if nothing changed.
 // -------------------------------------------------------------------------------------
 void setLedBrightness(float b) {
   static uint32_t lastDuty = 0xFFFFFFFF;   // impossible value, so the first call writes
@@ -133,16 +94,12 @@ void setLedBrightness(float b) {
   if (duty == lastDuty) return;
   lastDuty = duty;
 
-  while (TCC0->SYNCBUSY.bit.CCB0);   // wait until any previous buffered write has landed
+  while (TCC0->SYNCBUSY.bit.CCB0);   // wait for the previous write
   TCC0->CCB[0].reg = duty;
 }
 
 // -------------------------------------------------------------------------------------
-//  startModeBlink(count)
-// -------------------------------------------------------------------------------------
-//  Starts (or restarts) a sequence of `count` dark dips. Returns right away.
-//  serviceModeBlink() keeps the time, and serviceLed() does the actual dimming.
-//  The first dip starts now.
+//  startModeBlink(count)  -  start (or restart) `count` dark blinks, beginning now
 // -------------------------------------------------------------------------------------
 void startModeBlink(int count) {
   blinkRemaining = count;
@@ -151,50 +108,34 @@ void startModeBlink(int count) {
 }
 
 // -------------------------------------------------------------------------------------
-//  serviceModeBlink()
+//  serviceModeBlink()  -  called once per loop; only keeps time
 // -------------------------------------------------------------------------------------
-//  Called once per loop. Steps the blink timing. It only flips blinkPulsing, and
-//  serviceLed() turns that into light. Two states:
-//
-//    PULSING (dark):   after BLINK_PULSE_MS, one blink is finished. Count it down and
-//                      start a gap.
-//    GAP     (normal): if blinks remain, after BLINK_GAP_MS start the next dip.
-//                      If none remain, the sequence is over.
-//
-//  The count goes down at the end of each dip, so the sequence always ends in a gap and
-//  the LED goes straight back to its normal animation.
+//  Dark: after BLINK_PULSE_MS, count one blink done and start a gap.
+//  Gap:  if blinks remain, after BLINK_GAP_MS start the next one.
+//  After the last blink the LED goes straight back to the animation.
 // -------------------------------------------------------------------------------------
 void serviceModeBlink() {
   if (blinkPulsing) {
-    if (elapsed(blinkStamp, BLINK_PULSE_MS)) {   // end of dip
+    if (elapsed(blinkStamp, BLINK_PULSE_MS)) {   // blink over
       blinkPulsing = false;
       blinkRemaining--;
     }
   } else if (blinkRemaining > 0) {
-    if (elapsed(blinkStamp, BLINK_GAP_MS)) {     // end of gap -> next dip
+    if (elapsed(blinkStamp, BLINK_GAP_MS)) {     // gap over
       blinkPulsing = true;
     }
   }
-  // else: no blink running. Nothing to do.
 }
 
 // -------------------------------------------------------------------------------------
-//  tremPulseLevel()
+//  tremPulseLevel()  -  LED brightness for the trem modes, right now
 // -------------------------------------------------------------------------------------
-//  The trem-mode LED brightness for right now: a raised-cosine bump at the start of
-//  every stutter cycle, and idle for the rest of the cycle.
-//
-//    cycle  = 2 x the stutter interval   (one bend-on half + one bend-off half)
-//    t      = where we are in the cycle   (same clock as the bends: tremStart)
-//    width  = TREM_PULSE_WIDTH x cycle    (25% by default)
-//
-//  Inside the pulse, 0.5 x (1 - cos(2*pi * t / width)) goes smoothly 0 -> 1 -> 0, like
-//  one breath. That shape is what rounds the edges. It's scaled to run from the idle
-//  level up to the active level.
+//  A smooth bump (raised cosine) from idle up to active and back, at the start of each
+//  stutter cycle. Idle for the rest of the cycle.
 // -------------------------------------------------------------------------------------
 float tremPulseLevel() {
-  unsigned long cycle = 2 * tremInterval();
-  unsigned long t = (millis() - tremStart) % cycle;
+  unsigned long cycle = 2 * tremInterval();                // on half + off half
+  unsigned long t = (millis() - tremStart) % cycle;        // position in the cycle
   float width = TREM_PULSE_WIDTH * cycle;
 
   if (t >= width) return LED_IDLE_LEVEL;   // between pulses
@@ -204,22 +145,20 @@ float tremPulseLevel() {
 }
 
 // -------------------------------------------------------------------------------------
-//  serviceLed()  -  called once per loop, after the bends and the mode button
+//  serviceLed()  -  called once per loop, after the bends
 // -------------------------------------------------------------------------------------
-//  Picks the LED brightness for this loop using the priority list at the top of this
-//  tab, then writes it. Calling this every loop is what keeps the animation smooth.
-//  setLedBrightness() skips the write when nothing changed.
+//  Picks this loop's brightness from the priority list at the top of this tab.
 // -------------------------------------------------------------------------------------
 void serviceLed() {
   float level;
 
   if (blinkPulsing) {
-    level = 0.0f;                                   // 1. mode blink dip: dark
+    level = 0.0f;                                   // 1. blink: dark
   } else if (mode == MOMENTARY_TREM || mode == LATCHING_TREM) {
-    level = anyStuttering ? tremPulseLevel()        // 2. stuttering: synced pulse
+    level = anyStuttering ? tremPulseLevel()        // 2. stuttering: pulse
                           : LED_IDLE_LEVEL;         //    waiting
   } else {
-    level = anyEngaged ? LED_ACTIVE_LEVEL           // 3. bend engaged: full
+    level = anyEngaged ? LED_ACTIVE_LEVEL           // 3. bend on: full
                        : LED_IDLE_LEVEL;            // 4. waiting: dim
   }
 
