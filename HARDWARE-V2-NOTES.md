@@ -28,7 +28,7 @@ The AO3400A pulls the CD4066 control pin low when its gate is high:
 | **LOW** | off | pulled to 9 V by 10k | **CLOSED (bend on)** |
 
 This is done in firmware. `BEND_ON` / `BEND_OFF` are LOW / HIGH in `config.h`,
-`setSwitch()` uses them, and `setup()` starts both gates at `BEND_OFF` (HIGH).
+`setBend()` uses them, and `setup()` starts both gates at `BEND_OFF` (HIGH).
 
 The LED interrupt (Q1) is one wire: the **LED-** pad (Q1 drain) goes to the device's LED+
 (anode). Q1's source is on the board's GND, so D1 HIGH pulls the anode to ground (LED dark)

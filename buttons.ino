@@ -3,17 +3,19 @@
 // =====================================================================================
 //
 //  A button's contacts chatter for a few ms when pressed, so one press can read as
-//  several. pressed() only trusts a reading that has held for DEBOUNCE_MS.
+//  several. readButton() only trusts a reading that has held for DEBOUNCE_MS.
 //
 // =====================================================================================
 
 // -------------------------------------------------------------------------------------
-//  pressed(b)  -  call once per loop for each button
+//  readButton(b)  -  call once per loop for each button
 // -------------------------------------------------------------------------------------
-//  Updates b.down (held right now) and returns true once per press, when the button
-//  goes from released to pressed. Releases and holds never return true.
+//  Updates b.down (held right now) and returns the edge, once:
+//    BTN_PRESS     released -> pressed
+//    BTN_RELEASE   pressed -> released
+//    BTN_NONE      no change
 // -------------------------------------------------------------------------------------
-bool pressed(Button &b) {
+ButtonEdge readButton(Button &b) {
   int r = digitalRead(b.pin);
 
   // Any change, real or bounce, restarts the settle timer.
@@ -22,16 +24,25 @@ bool pressed(Button &b) {
     b.lastChange = millis();
   }
 
-  bool edge = false;
-
   // Trust the reading once it has held. (Unsigned subtraction survives millis() wrapping.)
-  if (millis() - b.lastChange > DEBOUNCE_MS) {
-    bool nowDown = (r == LOW);         // LOW = pressed
-    if (nowDown && !b.down) edge = true;   // released -> pressed
-    b.down = nowDown;
-  }
+  if (millis() - b.lastChange <= DEBOUNCE_MS) return BTN_NONE;
 
-  return edge;
+  bool nowDown = (r == LOW);         // LOW = pressed
+  if (nowDown == b.down) return BTN_NONE;
+
+  b.down = nowDown;
+  if (nowDown) b.downSince = b.lastChange;   // when the contacts closed
+  return nowDown ? BTN_PRESS : BTN_RELEASE;
+}
+
+// -------------------------------------------------------------------------------------
+//  pressLength(b)  -  how long the press lasted (ms)
+// -------------------------------------------------------------------------------------
+//  Use it in the loop that got BTN_RELEASE. lastChange is then the moment the contacts
+//  opened, and downSince the moment they closed.
+// -------------------------------------------------------------------------------------
+unsigned long pressLength(const Button &b) {
+  return b.lastChange - b.downSince;
 }
 
 // -------------------------------------------------------------------------------------

@@ -11,7 +11,7 @@
 //    Q1              dims or darkens the device's own LED, used as a status light
 //    Q2, Q3          drive the CD4066 switches that make the bends
 //
-//  Bend modes (MODE steps 1 -> 2 -> 3 -> 4 -> 1):
+//  Bend modes (a short MODE press steps 1 -> 2 -> 3 -> 4 -> 1):
 //    1 momentary       bend is on while the button is held
 //    2 momentary-trem  bend stutters while the button is held
 //    3 latching        each press toggles the bend
@@ -24,12 +24,19 @@
 //    MODE press        N dark blinks for mode N (also at power-up). Blinks override the
 //                      animation; between blinks the animation shows.
 //
+//  Speed mode (long-press MODE to enter and leave; the LED flashes fast):
+//    The bends stay off and the LED pulses at the stutter speed. BTN-1 slows it down,
+//    BTN-2 speeds it up. The new speed applies to both trem modes, and is kept in flash
+//    between power-ups.
+//
 //  Tabs:
 //    config.h      pins, polarity, timings, debug flag, types (settings live here)
 //    buttons.ino   button debouncing + the elapsed() timer
 //    bends.ino     the four bend modes
-//    mode.ino      the MODE button
-//    led.ino       LED dimming, mode blink, bend animation
+//    mode.ino      the MODE button: short and long press
+//    speed.ino     speed mode
+//    flash.ino     saves settings (the speed) between power-ups
+//    led.ino       LED dimming, blinks and flashes, bend animation
 //    watchdog.ino  resets the board if the sketch hangs
 //
 // =====================================================================================
@@ -40,19 +47,22 @@
 //  Global state (shared across tabs)
 // -------------------------------------------------------------------------------------
 
-// Fields: { { button pin, lastRead, lastChange, down }, gate pin, latched, on, stuttering }
+// Fields: { { button pin, lastRead, lastChange, down, downSince }, gate pin, latched, on, stuttering }
 // lastRead starts HIGH: a released button reads HIGH with INPUT_PULLUP.
 Bend bends[NUM_BENDS] = {
-  { { BTN1_PIN, HIGH, 0, false }, Q3_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
-  { { BTN2_PIN, HIGH, 0, false }, Q2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
+  { { BTN1_PIN, HIGH, 0, false, 0 }, BEND1_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
+  { { BTN2_PIN, HIGH, 0, false, 0 }, BEND2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
 };
 
-Button modeBtn = { MODE_BTN, HIGH, 0, false };
+Button modeBtn = { MODE_PIN, HIGH, 0, false, 0 };
 int mode = MOMENTARY;                            // current bend mode (1..NUM_MODES)
 
 // One stutter clock shared by the bends and the LED, so they stay in sync.
 unsigned long tremStart = 0;     // millis() when the current stutter began
 bool tremRunning = false;        // was any bend stuttering on the previous loop?
+float tremSpeed = 1.0;           // stutter speed multiplier, set in speed mode
+
+bool speedMode = false;          // true while in speed mode (speed.ino)
 
 // What the bends are doing this loop. Rebuilt by serviceBends(), read by led.ino.
 bool anyEngaged = false;         // at least one bend is on
@@ -68,8 +78,8 @@ void setup() {
     digitalWrite(bends[i].gate, BEND_OFF);
     pinMode(bends[i].gate, OUTPUT);
   }
-  digitalWrite(MAIN_LED, LED_IDLE);          // Q1 off: LED behaves normally
-  pinMode(MAIN_LED, OUTPUT);
+  digitalWrite(LED_GATE, LED_GATE_AT_BOOT);  // Q1 off: LED behaves normally
+  pinMode(LED_GATE, OUTPUT);
   ledPwmBegin();                             // the PWM timer takes over D1 (led.ino)
 
 #if LOG
@@ -84,6 +94,7 @@ void setup() {
   Serial.println("bend-platform-v2 ready");
 #endif
   logResetCause();
+  loadSpeed();            // the last saved stutter speed (speed.ino)
   logMode("mode ");
 
   startModeBlink(mode);   // blink the starting mode: shows the board is alive
@@ -96,9 +107,9 @@ void setup() {
 // -------------------------------------------------------------------------------------
 void loop() {
   // Bends first, so the LED sees this loop's state.
-  serviceBends();       // read BTN-1 / BTN-2, drive the bends (bends.ino)
-  serviceMode();        // read MODE, change mode, start the blink (mode.ino)
-  serviceModeBlink();   // advance the blink timing (led.ino)
+  serviceBends();       // read BTN-1 / BTN-2: drive the bends, or set the speed (bends.ino)
+  serviceMode();        // read MODE: next mode, or enter/leave speed mode (mode.ino)
+  serviceBlink();       // advance the blink timing (led.ino)
   serviceLed();         // set the LED brightness (led.ino)
   watchdogFeed();       // still running: restart the watchdog countdown (watchdog.ino)
 }

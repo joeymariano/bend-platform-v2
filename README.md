@@ -22,8 +22,12 @@ where the controller taps in; product listing:
 
 ## Controls
 
-- **MODE button** — cycles through the four bend modes (1 → 2 → 3 → 4 →) and blinks the
-  device's main LED the mode number (1–4) so you can tell which mode you're in.
+- **MODE button**
+  - **Short press** (acts on release): cycles through the four bend modes (1 → 2 → 3 → 4 →)
+    and blinks the device's main LED the mode number (1–4) so you can tell which mode
+    you're in.
+  - **Long press** (hold at least 1 s, then let go): enters or leaves
+    [speed mode](#speed-mode).
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Main LED
@@ -36,6 +40,8 @@ The device's own LED doubles as a status light:
   sine-rounded pulse once per stutter cycle (25% wide), locked to the stutter. Both bends
   share one stutter clock, so they always flip together.
 - **MODE press:** dark blinks, one per mode number. These win over the animation.
+- **Speed mode:** five quick dark flashes going in and coming out. In between, a nonstop
+  pulse at the current stutter speed.
 
 ### Modes
 
@@ -45,6 +51,22 @@ The device's own LED doubles as a status light:
 | 2 | momentary tremolo | bend stutters while the button is held       |
 | 3 | latching          | press toggles the bend on/off                |
 | 4 | latching tremolo  | press toggles a stuttering bend on/off       |
+
+### Speed mode
+
+Sets how fast the stutter runs in both trem modes, with the LED as a guide.
+
+1. Hold MODE for 1 s and let go. The LED flashes fast, then pulses at the current speed.
+2. Press and release **BTN-1** to slow it down, or **BTN-2** to speed it up. Each press is
+   10%, from about 0.26x to 3.8x. The bends stay off while you're in speed mode.
+3. Hold MODE for 1 s and let go again. The LED flashes fast and normal play resumes at
+   the new speed.
+
+The pulse shows the rate of the current mode: momentary-trem's rate in mode 2, otherwise
+latching-trem's. Short MODE presses do nothing in speed mode.
+
+The speed is saved to the SAMD21's flash when you leave speed mode (only if it changed),
+and loaded at power-up. Uploading a new sketch erases it, back to 1.0x.
 
 ## Pin map (Seeeduino XIAO SAMD21, Bend Platform v2 PCB)
 
@@ -106,7 +128,14 @@ Connect at **9600 baud** for an event log of what each press does, e.g.:
 ```
 MODE -> mode 3 (latching)
 BTN-1 -> bend1 latched ON
+SPEED mode ON, 1.00x
+BTN-2 -> faster, 1.10x
+speed saved
+SPEED mode OFF, 1.10x
 ```
+
+At power-up the log shows the speed it loaded, e.g. `speed 1.10x (saved)` or
+`speed 1.00x (default)`.
 
 After a watchdog reset the log starts with `reset by watchdog`.
 
@@ -129,8 +158,10 @@ The sketch is split into Arduino IDE tabs:
 | `config.h` | Pins, bend/LED polarity, timings, `LOG` flag, types. Settings live here. |
 | `buttons.ino` | Debounced button reading, `elapsed()` timer helper |
 | `bends.ino` | Drives the two bends in each of the four modes |
-| `mode.ino` | MODE button: steps through the modes |
-| `led.ino` | Main LED: ultrasonic PWM, mode blink, bend animation |
+| `mode.ino` | MODE button: short press steps the modes, long press toggles speed mode |
+| `speed.ino` | Speed mode: BTN-1 / BTN-2 set the stutter speed |
+| `flash.ino` | Saves settings (the speed) to flash between power-ups |
+| `led.ino` | Main LED: ultrasonic PWM, blinks and flashes, bend animation |
 | `watchdog.ino` | Hardware watchdog: resets the board if the sketch hangs |
 
 ## Build

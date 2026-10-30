@@ -2,17 +2,22 @@
 //  bends.ino  -  drive each bend according to the current mode
 // =====================================================================================
 //
-//  Reads:  `mode`, each bend's button
+//  Reads:  `mode`, `speedMode`, each bend's button
 //  Writes: the bend gates, the stutter clock, anyEngaged / anyStuttering
+//
+//  In speed mode the bends stay off and their buttons set the speed (speed.ino).
 //
 // =====================================================================================
 
 // -------------------------------------------------------------------------------------
-//  setSwitch(b, on)  -  the only place that writes a bend gate
+//  setBend(b, on, stuttering)  -  the only place that sets what a bend is doing
 // -------------------------------------------------------------------------------------
-//  Turns bend `b` on or off, using BEND_ON / BEND_OFF for the board's polarity.
+//  Records it for this loop (led.ino reads it) and writes the gate, using
+//  BEND_ON / BEND_OFF for the board's polarity.
 // -------------------------------------------------------------------------------------
-void setSwitch(Bend &b, bool on) {
+void setBend(Bend &b, bool on, bool stuttering) {
+  b.on = on;
+  b.stuttering = stuttering;
   digitalWrite(b.gate, on ? BEND_ON : BEND_OFF);
 }
 
@@ -20,9 +25,11 @@ void setSwitch(Bend &b, bool on) {
 //  tremInterval()  -  stutter half-period (ms) for the current mode
 // -------------------------------------------------------------------------------------
 //  The bends and the LED both use this, so they always agree on the speed.
+//  tremSpeed (speed mode) scales it: 2.0 = twice as fast = half the interval.
 // -------------------------------------------------------------------------------------
 unsigned long tremInterval() {
-  return (mode == MOMENTARY_TREM) ? TREM_MS : LATCH_TREM_MS;
+  unsigned long normal = (mode == MOMENTARY_TREM) ? TREM_MS : LATCH_TREM_MS;
+  return (unsigned long)(normal / tremSpeed + 0.5f);   // round to nearest ms
 }
 
 // -------------------------------------------------------------------------------------
@@ -44,41 +51,50 @@ bool tremPhaseOn() {
 // -------------------------------------------------------------------------------------
 //  serviceBends()  -  called once per loop
 // -------------------------------------------------------------------------------------
-//  Drives every bend, then sums up what they're doing for led.ino. Once no bend is
-//  stuttering, the clock restarts on the next stutter.
+//  Reads each bend's button and drives the bend, then sums up what they're doing for
+//  led.ino. Once no bend is stuttering, the clock restarts on the next stutter.
 // -------------------------------------------------------------------------------------
 void serviceBends() {
   anyEngaged = false;
   anyStuttering = false;
 
   for (int i = 0; i < NUM_BENDS; i++) {
-    serviceBend(bends[i], i);
-    if (bends[i].on)         anyEngaged = true;
-    if (bends[i].stuttering) anyStuttering = true;
+    Bend &b = bends[i];
+    ButtonEdge edge = readButton(b.button);   // also updates b.button.down
+
+    if (speedMode) {
+      speedButton(i, edge);        // the button sets the speed instead (speed.ino)
+      setBend(b, false, false);    // bends stay off
+    } else {
+      serviceBend(b, edge, i);
+    }
+
+    if (b.on)         anyEngaged = true;
+    if (b.stuttering) anyStuttering = true;
   }
 
   tremRunning = anyStuttering;
 }
 
 // -------------------------------------------------------------------------------------
-//  serviceBend(b, idx)  -  read one bend's button and drive it for the current mode
+//  serviceBend(b, edge, idx)  -  drive one bend for the current mode
 // -------------------------------------------------------------------------------------
 //  Two questions decide everything:
 //    wanted?   momentary modes: is the button held?  latching modes: is it toggled on?
 //    stutter?  in the trem modes, a wanted bend follows the stutter clock
 //
+//  Acts on contact (BTN_PRESS), not release, so the bend cuts in at once.
 //  The gate is written on every pass, so a mode change takes effect at once.
 //  `latched` is kept across mode changes. `idx` is only used for the log.
 // -------------------------------------------------------------------------------------
-void serviceBend(Bend &b, int idx) {
-  bool justPressed = pressed(b.button);   // also updates b.button.down
+void serviceBend(Bend &b, ButtonEdge edge, int idx) {
+  bool justPressed = (edge == BTN_PRESS);
 
   if (isLatchingMode() && justPressed) b.latched = !b.latched;
 
   bool wanted = isLatchingMode() ? b.latched : b.button.down;
-  b.stuttering = wanted && isTremMode();
-  b.on = b.stuttering ? tremPhaseOn() : wanted;
-  setSwitch(b, b.on);
+  bool stuttering = wanted && isTremMode();
+  setBend(b, stuttering ? tremPhaseOn() : wanted, stuttering);
 
 #if LOG
   // e.g. "BTN-1 -> bend1 latched ON" or "BTN-2 -> bend2 momentary"

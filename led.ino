@@ -1,20 +1,23 @@
 // =====================================================================================
-//  led.ino  -  the device's LED (via Q1): dimming, mode blink, bend animation
+//  led.ino  -  the device's LED (via Q1): dimming, blinks, bend animation
 // =====================================================================================
 //
 //  Q1 can pull the device's LED to ground. Switching it fast (PWM) sets any brightness.
 //
 //  What the LED shows, highest priority first:
-//    1. mode blink    N dark blinks for mode N
-//    2. trem modes    a soft pulse at the start of each stutter cycle
-//    3. other modes   full while either bend is on
-//    4. waiting       dim (LED_IDLE_LEVEL)
+//    1. blinks        N dark blinks for mode N, or the fast flash for speed mode
+//    2. speed mode    the trem pulse, nonstop, at the current speed
+//    3. trem modes    a soft pulse at the start of each stutter cycle
+//    4. other modes   full while either bend is on
+//    5. waiting       dim (LED_IDLE_LEVEL)
 //
 //  Mode blink for mode 3 (# = dark, . = animation):
 //
 //      ###...###...###      then back to the animation
 //      |-| BLINK_PULSE_MS
 //         |-| BLINK_GAP_MS
+//
+//  The fast flash is the same, with FLASH_COUNT blinks of FLASH_MS each.
 //
 //  Trem pulse over one stutter cycle:
 //
@@ -28,10 +31,12 @@
 
 #include "wiring_private.h"   // pinPeripheral()
 
-// Mode-blink state.
+// Blink state.
 int blinkRemaining = 0;          // blinks left, including the one in progress
 bool blinkPulsing = false;       // true while the LED is dark for a blink
 unsigned long blinkStamp = 0;    // millis() when the current blink or gap began
+unsigned long blinkDarkMs = 0;   // dark time per blink
+unsigned long blinkLitMs = 0;    // lit time between blinks
 
 // -------------------------------------------------------------------------------------
 //  ledPwmBegin()  -  call once in setup()
@@ -70,7 +75,7 @@ void ledPwmBegin() {
   // Start the timer, then hand it the pin, so the pin joins a running waveform.
   TCC0->CTRLA.bit.ENABLE = 1;
   while (TCC0->SYNCBUSY.bit.ENABLE);
-  pinPeripheral(MAIN_LED, PIO_TIMER);
+  pinPeripheral(LED_GATE, PIO_TIMER);
 }
 
 // -------------------------------------------------------------------------------------
@@ -104,36 +109,48 @@ void setLedBrightness(float b) {
 }
 
 // -------------------------------------------------------------------------------------
-//  startModeBlink(count)  -  start (or restart) `count` dark blinks, beginning now
+//  startBlink(count, darkMs, litMs)  -  start (or restart) `count` dark blinks, now
 // -------------------------------------------------------------------------------------
-void startModeBlink(int count) {
+void startBlink(int count, unsigned long darkMs, unsigned long litMs) {
   blinkRemaining = count;
+  blinkDarkMs = darkMs;
+  blinkLitMs = litMs;
   blinkPulsing = true;
   blinkStamp = millis();
 }
 
+// N blinks for mode N.
+void startModeBlink(int count) {
+  startBlink(count, BLINK_PULSE_MS, BLINK_GAP_MS);
+}
+
+// Fast flash: entering or leaving speed mode.
+void startFastFlash() {
+  startBlink(FLASH_COUNT, FLASH_MS, FLASH_MS);
+}
+
 // -------------------------------------------------------------------------------------
-//  serviceModeBlink()  -  called once per loop; only keeps time
+//  serviceBlink()  -  called once per loop; only keeps time
 // -------------------------------------------------------------------------------------
-//  Dark: after BLINK_PULSE_MS, count one blink done and start a gap.
-//  Gap:  if blinks remain, after BLINK_GAP_MS start the next one.
+//  Dark: after blinkDarkMs, count one blink done and start a gap.
+//  Gap:  if blinks remain, after blinkLitMs start the next one.
 //  After the last blink the LED goes straight back to the animation.
 // -------------------------------------------------------------------------------------
-void serviceModeBlink() {
+void serviceBlink() {
   if (blinkPulsing) {
-    if (elapsed(blinkStamp, BLINK_PULSE_MS)) {   // blink over
+    if (elapsed(blinkStamp, blinkDarkMs)) {   // blink over
       blinkPulsing = false;
       blinkRemaining--;
     }
   } else if (blinkRemaining > 0) {
-    if (elapsed(blinkStamp, BLINK_GAP_MS)) {     // gap over
+    if (elapsed(blinkStamp, blinkLitMs)) {    // gap over
       blinkPulsing = true;
     }
   }
 }
 
 // -------------------------------------------------------------------------------------
-//  tremPulseLevel()  -  LED brightness for the trem modes, right now
+//  tremPulseLevel()  -  LED brightness for the trem modes and speed mode, right now
 // -------------------------------------------------------------------------------------
 //  A smooth bump (raised cosine) from idle up to active and back, at the start of each
 //  stutter cycle. Idle for the rest of the cycle.
@@ -159,12 +176,14 @@ void serviceLed() {
 
   if (blinkPulsing) {
     level = 0.0f;                                   // 1. blink: dark
+  } else if (speedMode) {
+    level = tremPulseLevel();                       // 2. speed mode: pulse
   } else if (isTremMode()) {
-    level = anyStuttering ? tremPulseLevel()        // 2. stuttering: pulse
+    level = anyStuttering ? tremPulseLevel()        // 3. stuttering: pulse
                           : LED_IDLE_LEVEL;         //    waiting
   } else {
-    level = anyEngaged ? LED_ACTIVE_LEVEL           // 3. bend on: full
-                       : LED_IDLE_LEVEL;            // 4. waiting: dim
+    level = anyEngaged ? LED_ACTIVE_LEVEL           // 4. bend on: full
+                       : LED_IDLE_LEVEL;            // 5. waiting: dim
   }
 
   setLedBrightness(level);

@@ -49,14 +49,13 @@
 //    POWER: 9 V battery -> SS14 diode -> L78M05 -> XIAO 5V pin.
 //           Don't plug in USB while the battery is connected.
 // -------------------------------------------------------------------------------------
-const uint8_t MAIN_LED  = 1;   // D1 -> Q1 gate (dims the device's LED)
-const uint8_t MODE_BTN  = 9;   // D9 <- MODE button
+const uint8_t LED_GATE   = 1;   // D1 -> Q1 gate (dims the device's LED)
+const uint8_t MODE_PIN   = 9;   // D9 <- MODE button
 
-const uint8_t BTN1_PIN  = 2;   // D2 <- BTN-1 (bend 1)
-const uint8_t BTN2_PIN  = 3;   // D3 <- BTN-2 (bend 2)
-const uint8_t Q3_GATE   = 5;   // D5 -> Q3 -> CD4066 A -> BND-1 (bend 1)
-const uint8_t Q2_GATE   = 4;   // D4 -> Q2 -> CD4066 B -> BND-2 (bend 2)
-                               // Bend 1 is on Q3, not Q2. That matches the PCB.
+const uint8_t BTN1_PIN   = 2;   // D2 <- BTN-1 (bend 1)
+const uint8_t BTN2_PIN   = 3;   // D3 <- BTN-2 (bend 2)
+const uint8_t BEND1_GATE = 5;   // D5 -> Q3 -> CD4066 A -> BND-1 (Q3, not Q2: matches the PCB)
+const uint8_t BEND2_GATE = 4;   // D4 -> Q2 -> CD4066 B -> BND-2
 
 const int NUM_BENDS = 2;
 
@@ -75,9 +74,9 @@ const uint8_t BEND_ON = LOW, BEND_OFF = HIGH;
 // -------------------------------------------------------------------------------------
 //  Q1 on = LED dark. Q1 off = LED normal (lit, if the device has it on).
 //  After setup(), a PWM timer drives Q1 (led.ino): more on-time = dimmer LED.
-//  LED_IDLE is only the level written at power-up, before the PWM starts.
+//  LED_GATE_AT_BOOT is only the level written at power-up, before the PWM starts.
 // -------------------------------------------------------------------------------------
-const uint8_t LED_IDLE = LOW;   // Q1 off = LED lit
+const uint8_t LED_GATE_AT_BOOT = LOW;   // Q1 off = LED lit
 
 // -------------------------------------------------------------------------------------
 //  LED animation (led.ino)
@@ -90,16 +89,37 @@ const float TREM_PULSE_WIDTH = 0.25;  // trem pulse length, as a fraction of a s
                                       // cycle. Wider = softer, narrower = sharper.
 const float LED_GAMMA        = 2.2;   // brightness correction. 1.0 = none.
 const uint32_t LED_PWM_TOP   = 2047;  // PWM frequency = 48 MHz / (TOP + 1) = 23.4 kHz.
-                                      // Keep TOP <= 2399 (>= 20 kHz) to stay above hearing.
+static_assert(LED_PWM_TOP <= 2399, "LED_PWM_TOP above 2399 puts the PWM below 20 kHz (audible)");
 
 // -------------------------------------------------------------------------------------
 //  Timings (milliseconds)
 // -------------------------------------------------------------------------------------
 const unsigned long DEBOUNCE_MS    = 50;   // raise if a press counts twice
+const unsigned long LONG_PRESS_MS  = 1000; // hold MODE this long, then let go: speed mode in/out
 const unsigned long BLINK_PULSE_MS = 223;  // dark time per mode blink
 const unsigned long BLINK_GAP_MS   = 223;  // lit time between mode blinks
+const unsigned long FLASH_MS       = 40;   // dark and lit time per fast flash
+const int           FLASH_COUNT    = 5;    // fast flashes on entering/leaving speed mode
 const unsigned long TREM_MS        = 60;   // momentary-trem: on 60, off 60 (about 8 Hz)
 const unsigned long LATCH_TREM_MS  = 100;  // latching-trem: on 100, off 100 (5 Hz)
+                                           // (both at normal speed; see Speed mode below)
+
+// -------------------------------------------------------------------------------------
+//  Speed mode (speed.ino)
+// -------------------------------------------------------------------------------------
+//  Each BTN-1 / BTN-2 press changes the stutter speed by SPEED_STEP, at most
+//  SPEED_MAX_STEPS each way. 1.1^14 = 3.8, so the range is about 0.26x to 3.8x.
+// -------------------------------------------------------------------------------------
+const float SPEED_STEP      = 1.1;   // 10% per press
+const int   SPEED_MAX_STEPS = 14;
+
+// -------------------------------------------------------------------------------------
+//  Saved settings (flash.ino)
+// -------------------------------------------------------------------------------------
+//  Kept in flash between power-ups. Uploading a new sketch erases them.
+//  Bump SETTINGS_VERSION whenever the Settings type changes, so old saves are ignored.
+// -------------------------------------------------------------------------------------
+const uint32_t SETTINGS_VERSION = 1;
 
 // -------------------------------------------------------------------------------------
 //  Watchdog (watchdog.ino)
@@ -129,18 +149,24 @@ const int NUM_MODES = LATCHING_TREM;
 
 // Log names, indexed by mode number (index 0 unused).
 const char* const MODE_NAMES[] = { "", "momentary", "momentary-trem", "latching", "latching-trem" };
+static_assert(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0]) == NUM_MODES + 1,
+              "MODE_NAMES needs one name per mode, plus the unused \"\" at index 0");
 
 // -------------------------------------------------------------------------------------
 //  Types
 // -------------------------------------------------------------------------------------
 
-// A debounced button. Updated by pressed() (buttons.ino).
+// A debounced button. Updated by readButton() (buttons.ino).
 struct Button {
   uint8_t pin;               // input pin
   int lastRead;              // last raw reading
   unsigned long lastChange;  // millis() when the raw reading last changed
   bool down;                 // debounced: true = pressed
+  unsigned long downSince;   // millis() when the current press began
 };
+
+// What readButton() saw this loop.
+enum ButtonEdge { BTN_NONE, BTN_PRESS, BTN_RELEASE };
 
 // One bend: its button, its gate pin, and what it's doing. (The stutter clock is
 // shared by all bends, so it lives in the main tab.)
@@ -148,6 +174,13 @@ struct Bend {
   Button button;
   uint8_t gate;              // output pin to this bend's Q gate
   bool latched;              // latching modes: toggled on?
-  bool on;                   // is the gate on this loop? (set by serviceBend)
-  bool stuttering;           // is it stuttering this loop? (set by serviceBend)
+  bool on;                   // is the gate on this loop? (set by setBend)
+  bool stuttering;           // is it stuttering this loop? (set by setBend)
 };
+
+// What's kept in flash between power-ups (flash.ino). 32-bit fields only: flash is
+// written a 32-bit word at a time.
+struct Settings {
+  int32_t speedSteps;        // speed mode: steps from normal speed
+};
+static_assert(sizeof(Settings) % 4 == 0, "Settings must be whole 32-bit words");

@@ -1,18 +1,30 @@
 // =====================================================================================
 //  mode.ino  -  the MODE button, plus small questions about the current mode
 // =====================================================================================
+//
+//  Both act on release:
+//    short press   next bend mode (ignored in speed mode)
+//    long press    held at least LONG_PRESS_MS: enter or leave speed mode (speed.ino)
+//
+// =====================================================================================
 
 // -------------------------------------------------------------------------------------
 //  serviceMode()  -  called once per loop
 // -------------------------------------------------------------------------------------
-//  On a MODE press: step to the next mode and blink it. A press mid-blink restarts the
-//  blink, so quick taps only show the final mode.
-// -------------------------------------------------------------------------------------
 void serviceMode() {
-  if (!pressed(modeBtn)) return;
+  if (readButton(modeBtn) != BTN_RELEASE) return;
 
+  if (pressLength(modeBtn) >= LONG_PRESS_MS) toggleSpeedMode();
+  else if (!speedMode)                       nextMode();
+}
+
+// -------------------------------------------------------------------------------------
+//  nextMode()  -  step to the next mode and blink it
+// -------------------------------------------------------------------------------------
+//  A press mid-blink restarts the blink, so quick taps only show the final mode.
+// -------------------------------------------------------------------------------------
+void nextMode() {
   mode = (mode % NUM_MODES) + 1;   // 1 -> 2 -> 3 -> 4 -> 1
-
   startModeBlink(mode);
   logMode("MODE -> mode ");
 }
