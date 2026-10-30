@@ -108,7 +108,16 @@ MODE -> mode 3 (latching)
 BTN-1 -> bend1 latched ON
 ```
 
+After a watchdog reset the log starts with `reset by watchdog`.
+
 Set `#define LOG 0` in `config.h` to compile it out.
+
+## Watchdog
+
+`loop()` feeds the SAMD21's hardware watchdog on every pass. If the sketch ever hangs
+(say, after the device is left on for a long time), the watchdog resets the board after
+about 2 s (`WDT_TIMEOUT` in `config.h`). It comes back like a fresh power-up: bends off,
+mode 1, one mode blink.
 
 ## Code layout
 
@@ -122,6 +131,7 @@ The sketch is split into Arduino IDE tabs:
 | `bends.ino` | Drives the two bends in each of the four modes |
 | `mode.ino` | MODE button: steps through the modes |
 | `led.ino` | Main LED: ultrasonic PWM, mode blink, bend animation |
+| `watchdog.ino` | Hardware watchdog: resets the board if the sketch hangs |
 
 ## Build
 

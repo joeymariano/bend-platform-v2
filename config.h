@@ -102,6 +102,14 @@ const unsigned long TREM_MS        = 60;   // momentary-trem: on 60, off 60 (abo
 const unsigned long LATCH_TREM_MS  = 100;  // latching-trem: on 100, off 100 (5 Hz)
 
 // -------------------------------------------------------------------------------------
+//  Watchdog (watchdog.ino)
+// -------------------------------------------------------------------------------------
+//  If loop() stops for this long, the board resets itself. Counts 1,024 Hz ticks:
+//  WDT_CONFIG_PER_1K_Val = 1 s, _2K = 2 s, _4K = 4 s, _8K = 8 s, _16K = 16 s.
+// -------------------------------------------------------------------------------------
+const uint8_t WDT_TIMEOUT = WDT_CONFIG_PER_2K_Val;   // about 2 s
+
+// -------------------------------------------------------------------------------------
 //  Debug flag
 // -------------------------------------------------------------------------------------
 #define LOG 1        // 1 = event log over Serial at 9600 baud, e.g. "MODE -> mode 3 (latching)"

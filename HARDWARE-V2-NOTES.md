@@ -47,6 +47,13 @@ To keep the window short, `setup()` configures D1, D4 and D5 **before anything e
 including `Serial.begin()`. It writes each level before switching the pin to OUTPUT. If the startup glitch turns out to be audible, add
 100k gate-to-source resistors on Q2/Q3 in a future board revision.
 
+## Watchdog
+
+`watchdog.ino` turns on the SAMD21's hardware watchdog at the end of `setup()`, and `loop()`
+feeds it. If the sketch hangs, the chip resets after about 2 s (`WDT_TIMEOUT` in `config.h`)
+and starts like a fresh power-up, so the gates are set first again. With `LOG` on, the log
+then says `reset by watchdog`.
+
 ## Using the bends (CD4066 limits, from the TI datasheet)
 
 - The pedal being bent **must share ground** with the platform (the GND pad).

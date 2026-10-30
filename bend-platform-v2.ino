@@ -30,12 +30,7 @@
 //    bends.ino     the four bend modes
 //    mode.ino      the MODE button
 //    led.ino       LED dimming, mode blink, bend animation
-//
-//  Arduino builds this tab first, then the others alphabetically, as one file. So the
-//  globals below are visible in every tab.
-//
-//  Nothing uses delay(). loop() runs thousands of times a second and each service
-//  function does a small step, so the buttons always respond instantly.
+//    watchdog.ino  resets the board if the sketch hangs
 //
 // =====================================================================================
 
@@ -88,9 +83,12 @@ void setup() {
 #if LOG
   Serial.println("bend-platform-v2 ready");
 #endif
+  logResetCause();
   logMode("mode ");
 
   startModeBlink(mode);   // blink the starting mode: shows the board is alive
+
+  watchdogBegin();        // from here on, loop() must keep feeding it (watchdog.ino)
 }
 
 // -------------------------------------------------------------------------------------
@@ -102,4 +100,5 @@ void loop() {
   serviceMode();        // read MODE, change mode, start the blink (mode.ino)
   serviceModeBlink();   // advance the blink timing (led.ino)
   serviceLed();         // set the LED brightness (led.ino)
+  watchdogFeed();       // still running: restart the watchdog countdown (watchdog.ino)
 }
