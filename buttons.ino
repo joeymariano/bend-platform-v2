@@ -36,13 +36,13 @@ ButtonEdge readButton(Button &b) {
 }
 
 // -------------------------------------------------------------------------------------
-//  pressLength(b)  -  how long the press lasted (ms)
+//  pressLength(b)  -  how long the button has been down so far (ms)
 // -------------------------------------------------------------------------------------
-//  Use it in the loop that got BTN_RELEASE. lastChange is then the moment the contacts
-//  opened, and downSince the moment they closed.
+//  After BTN_RELEASE: how long the press lasted. lastChange is then the moment the
+//  contacts opened, and downSince the moment they closed.
 // -------------------------------------------------------------------------------------
 unsigned long pressLength(const Button &b) {
-  return b.lastChange - b.downSince;
+  return (b.down ? millis() : b.lastChange) - b.downSince;
 }
 
 // -------------------------------------------------------------------------------------

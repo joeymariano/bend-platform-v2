@@ -26,8 +26,8 @@ where the controller taps in; product listing:
   - **Short press** (acts on release): cycles through the four bend modes (1 → 2 → 3 → 4 →)
     and blinks the device's main LED the mode number (1–4) so you can tell which mode
     you're in.
-  - **Long press** (hold at least 1 s, then let go): enters or leaves
-    [speed mode](#speed-mode).
+  - **Long press** (hold 2 s; it acts at the 2 s mark, no need to let go): enters or
+    leaves [speed mode](#speed-mode).
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Main LED
@@ -56,11 +56,11 @@ The device's own LED doubles as a status light:
 
 Sets how fast the stutter runs in both trem modes, with the LED as a guide.
 
-1. Hold MODE for 1 s and let go. The LED flashes fast, then pulses at the current speed.
+1. Hold MODE for 2 s. The LED flashes fast, then pulses at the current speed.
 2. Press and release **BTN-1** to slow it down, or **BTN-2** to speed it up. Each press is
    10%, from about 0.26x to 3.8x. The bends stay off while you're in speed mode.
-3. Hold MODE for 1 s and let go again. The LED flashes fast and normal play resumes at
-   the new speed.
+3. Hold MODE for 2 s again. The LED flashes fast and normal play resumes at the new
+   speed.
 
 The pulse shows the rate of the current mode: momentary-trem's rate in mode 2, otherwise
 latching-trem's. Short MODE presses do nothing in speed mode.

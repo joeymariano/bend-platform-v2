@@ -2,20 +2,29 @@
 //  mode.ino  -  the MODE button, plus small questions about the current mode
 // =====================================================================================
 //
-//  Both act on release:
-//    short press   next bend mode (ignored in speed mode)
-//    long press    held at least LONG_PRESS_MS: enter or leave speed mode (speed.ino)
+//  short press   acts on release: next bend mode (ignored in speed mode)
+//  long press    acts the moment it reaches LONG_PRESS_MS, still held: enter or leave
+//                speed mode (speed.ino). The release that follows does nothing.
 //
 // =====================================================================================
+
+bool modeLongDone = false;   // this press already counted as a long press
 
 // -------------------------------------------------------------------------------------
 //  serviceMode()  -  called once per loop
 // -------------------------------------------------------------------------------------
 void serviceMode() {
-  if (readButton(modeBtn) != BTN_RELEASE) return;
+  ButtonEdge edge = readButton(modeBtn);
 
-  if (pressLength(modeBtn) >= LONG_PRESS_MS) toggleSpeedMode();
-  else if (!speedMode)                       nextMode();
+  if (modeBtn.down && !modeLongDone && pressLength(modeBtn) >= LONG_PRESS_MS) {
+    modeLongDone = true;
+    toggleSpeedMode();
+  }
+
+  if (edge == BTN_RELEASE) {
+    if (!modeLongDone && !speedMode) nextMode();   // it was a short press
+    modeLongDone = false;                          // ready for the next press
+  }
 }
 
 // -------------------------------------------------------------------------------------
