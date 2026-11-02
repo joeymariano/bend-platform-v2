@@ -3,7 +3,7 @@
 ![Bend Platform v2 PCB render](docs/layouts-schematics/3D_PCB1_2026-10-15.png)
 ![Internal Mod example](docs/final-mod%2Bwiring/mod.jpeg)
 
-Adds physical buttons to a circuit-bent device (a guitar fuzz/distortion pedal, for
+Adds physical buttons to a device (a guitar fuzz/distortion pedal, for
 example) that open and close circuit "bends" in a musical way. A Seeeduino XIAO
 (SAMD21) on the **Bend Platform v2** PCB drives three **AO3400A** MOSFETs. One
 interrupts the device's main LED, which is used as the mode indicator. The other two
