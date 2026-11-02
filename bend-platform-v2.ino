@@ -30,8 +30,9 @@
 //  Speed mode (long-press MODE in mode 2, 4 or 5 to enter, again to leave; the LED
 //  ramps up twice going in, down twice coming out):
 //    The LED pulses at the stutter speed. BTN-1 slows it down, BTN-2 speeds it up. The
-//    bends keep running, so you hear it; presses don't toggle a latch. The new speed applies to modes 2, 4 and 5, and is kept in flash
-//    between power-ups.
+//    bends keep running, so you hear it; presses don't toggle a latch. The new speed
+//    applies to modes 2, 4 and 5, and is kept in flash between power-ups. After 30 s
+//    with no button touched, it leaves on its own.
 //
 //  Each loop() pass runs in five stages:
 //    1 read      sample every button once
@@ -124,6 +125,7 @@ void loop() {
 
   // 2. Decide: mode and speed logic
   serviceMode();        // MODE: next mode, or enter/leave speed mode (mode.ino)
+  serviceSpeedTimeout(); // leave speed mode after 30 s idle (speed.ino)
 
   // 3. Drive the bends
   serviceBends();       // BTN-1 / BTN-2: set the gates, or set the speed (bends.ino)

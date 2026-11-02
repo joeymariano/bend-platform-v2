@@ -30,7 +30,7 @@ where the controller taps in; product listing:
     can tell which mode you're in.
   - **Long press** (hold 2 s; it acts at the 2 s mark, no need to let go): enters or
     leaves [speed mode](#speed-mode). Entering works only in the modes with a clock (2, 4
-    and 5); leaving always works.
+    and 5)
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Main LED
@@ -43,10 +43,9 @@ The device's own LED doubles as a status light:
 - **Momentary-trem / latching-trem:** while a bend stutters, the LED does a soft,
   sine-rounded pulse once per stutter cycle (25% wide), locked to the stutter. Both bends
   share one stutter clock, so they always flip together.
-- **MODE press:** dark blinks, one per mode number. These win over the animation.
+- **MODE press:** dark blinks, one per mode number.
 - **Speed mode:** a full dark-to-bright sawtooth, twice: ramping up going in, ramping
-  down coming out, so it can't be mistaken for a mode blink. In between, a nonstop
-  pulse at the current stutter speed.
+  down coming out, so it can't be mistaken for a mode blink.
 
 ### Modes
 
@@ -85,6 +84,11 @@ with the LED as a guide.
 The pulse shows the rate of the current mode: momentary-trem's in mode 2, latching-trem's
 in mode 4, the step rate (one pulse per two steps) in mode 5. One speed setting covers all
 three. Short MODE presses do nothing in speed mode.
+
+If you don't touch a button for 30 s (`SPEED_TIMEOUT_MS`), it leaves speed mode on its
+own, just like the long press: the speed is saved and the LED ramps down twice. The
+stutter keeps its rhythm through the exit, so it's safe mid-song. Holding a bend counts
+as touching a button.
 
 The speed is saved to the SAMD21's flash when you leave speed mode (only if it changed),
 and loaded at power-up. The bend mode is saved too, 3 s after your last short MODE press,

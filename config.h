@@ -96,6 +96,8 @@ static_assert(LED_PWM_TOP <= 2399, "LED_PWM_TOP above 2399 puts the PWM below 20
 // -------------------------------------------------------------------------------------
 const unsigned long DEBOUNCE_MS    = 50;   // raise if a press counts twice
 const unsigned long LONG_PRESS_MS  = 2000; // hold MODE this long: speed mode in/out
+const unsigned long SPEED_TIMEOUT_MS = 30000; // leave speed mode after this long with no
+                                              // button pressed or held
 const unsigned long BLINK_PULSE_MS = 178;  // dark time per mode blink
 const unsigned long BLINK_GAP_MS   = 178;  // lit time between mode blinks
 const unsigned long SWEEP_MS       = 200;  // one brightness ramp, entering/leaving speed mode
