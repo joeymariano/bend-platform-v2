@@ -8,7 +8,18 @@
 // =====================================================================================
 
 // -------------------------------------------------------------------------------------
-//  readButton(b)  -  call once per loop for each button
+//  readButtons()  -  stage 1 of loop(): sample every button once
+// -------------------------------------------------------------------------------------
+//  Stores each button's edge in .edge, so the rest of the loop works from one
+//  snapshot of the inputs.
+// -------------------------------------------------------------------------------------
+void readButtons() {
+  for (int i = 0; i < NUM_BENDS; i++) bends[i].button.edge = readButton(bends[i].button);
+  modeBtn.edge = readButton(modeBtn);
+}
+
+// -------------------------------------------------------------------------------------
+//  readButton(b)  -  read one button (called by readButtons)
 // -------------------------------------------------------------------------------------
 //  Updates b.down (held right now) and returns the edge, once:
 //    BTN_PRESS     released -> pressed

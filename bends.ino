@@ -2,7 +2,7 @@
 //  bends.ino  -  drive each bend according to the current mode
 // =====================================================================================
 //
-//  Reads:  `mode`, `speedMode`, each bend's button
+//  Reads:  `mode`, `speedMode`, each bend's button (already read by readButtons())
 //  Writes: the bend gates, the stutter clock, anyEngaged / anyStuttering
 //
 //  In speed mode the bends keep running, so you hear the new speed at once. Their
@@ -52,7 +52,7 @@ bool tremPhaseOn() {
 // -------------------------------------------------------------------------------------
 //  serviceBends()  -  called once per loop
 // -------------------------------------------------------------------------------------
-//  Reads each bend's button and drives the bend, then sums up what they're doing for
+//  Acts on each bend's button edge and drives the bend, then sums up what they're doing for
 //  led.ino. Once no bend is stuttering, the clock restarts on the next stutter.
 // -------------------------------------------------------------------------------------
 void serviceBends() {
@@ -61,7 +61,7 @@ void serviceBends() {
 
   for (int i = 0; i < NUM_BENDS; i++) {
     Bend &b = bends[i];
-    ButtonEdge edge = readButton(b.button);   // also updates b.button.down
+    ButtonEdge edge = b.button.edge;   // read this loop by readButtons()
 
     if (speedMode) {
       speedButton(i, edge);   // the press sets the speed (speed.ino)...

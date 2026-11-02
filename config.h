@@ -157,17 +157,18 @@ static_assert(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0]) == NUM_MODES + 1,
 //  Types
 // -------------------------------------------------------------------------------------
 
-// A debounced button. Updated by readButton() (buttons.ino).
+// What readButton() saw this loop.
+enum ButtonEdge { BTN_NONE, BTN_PRESS, BTN_RELEASE };
+
+// A debounced button. Updated once per loop by readButtons() (buttons.ino).
 struct Button {
   uint8_t pin;               // input pin
   int lastRead;              // last raw reading
   unsigned long lastChange;  // millis() when the raw reading last changed
   bool down;                 // debounced: true = pressed
   unsigned long downSince;   // millis() when the current press began
+  ButtonEdge edge;           // this loop's edge, set by readButtons()
 };
-
-// What readButton() saw this loop.
-enum ButtonEdge { BTN_NONE, BTN_PRESS, BTN_RELEASE };
 
 // One bend: its button, its gate pin, and what it's doing. (The stutter clock is
 // shared by all bends, so it lives in the main tab.)

@@ -16,7 +16,7 @@ bool modeLongDone = false;   // this press already counted as a long press
 //  serviceMode()  -  called once per loop
 // -------------------------------------------------------------------------------------
 void serviceMode() {
-  ButtonEdge edge = readButton(modeBtn);
+  ButtonEdge edge = modeBtn.edge;   // read this loop by readButtons()
 
   if (modeBtn.down && !modeLongDone && pressLength(modeBtn) >= LONG_PRESS_MS) {
     modeLongDone = true;

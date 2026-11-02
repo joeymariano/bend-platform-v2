@@ -31,9 +31,16 @@
 //    bends keep running, so you hear it; presses don't toggle a latch. The new speed applies to both trem modes, and is kept in flash
 //    between power-ups.
 //
+//  Each loop() pass runs in five stages:
+//    1 read      sample every button once
+//    2 decide    MODE: change the mode, enter/leave speed mode
+//    3 bends     drive the bend gates (or set the speed)
+//    4 LED       blinks, flashes and the bend animation
+//    5 upkeep    save settings, feed the watchdog
+//
 //  Tabs:
 //    config.h      pins, polarity, timings, debug flag, types (settings live here)
-//    buttons.ino   button debouncing + the elapsed() timer
+//    buttons.ino   reads the buttons (debounced) + the elapsed() timer
 //    bends.ino     the four bend modes
 //    mode.ino      the MODE button: short and long press
 //    speed.ino     speed mode
@@ -49,14 +56,14 @@
 //  Global state (shared across tabs)
 // -------------------------------------------------------------------------------------
 
-// Fields: { { button pin, lastRead, lastChange, down, downSince }, gate pin, latched, on, stuttering }
+// Fields: { { button pin, lastRead, lastChange, down, downSince, edge }, gate pin, latched, on, stuttering }
 // lastRead starts HIGH: a released button reads HIGH with INPUT_PULLUP.
 Bend bends[NUM_BENDS] = {
-  { { BTN1_PIN, HIGH, 0, false, 0 }, BEND1_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
-  { { BTN2_PIN, HIGH, 0, false, 0 }, BEND2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
+  { { BTN1_PIN, HIGH, 0, false, 0, BTN_NONE }, BEND1_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
+  { { BTN2_PIN, HIGH, 0, false, 0, BTN_NONE }, BEND2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
 };
 
-Button modeBtn = { MODE_PIN, HIGH, 0, false, 0 };
+Button modeBtn = { MODE_PIN, HIGH, 0, false, 0, BTN_NONE };
 int mode = MOMENTARY;                            // current bend mode (1..NUM_MODES)
 
 // One stutter clock shared by the bends and the LED, so they stay in sync.
@@ -109,11 +116,20 @@ void setup() {
 //  loop()  -  runs forever
 // -------------------------------------------------------------------------------------
 void loop() {
-  // Bends first, so the LED sees this loop's state.
-  serviceBends();       // read BTN-1 / BTN-2: drive the bends, or set the speed (bends.ino)
-  serviceMode();        // read MODE: next mode, or enter/leave speed mode (mode.ino)
+  // 1. Read: sample every button once
+  readButtons();        // BTN-1, BTN-2, MODE -> each button's .edge (buttons.ino)
+
+  // 2. Decide: mode and speed logic
+  serviceMode();        // MODE: next mode, or enter/leave speed mode (mode.ino)
+
+  // 3. Drive the bends
+  serviceBends();       // BTN-1 / BTN-2: set the gates, or set the speed (bends.ino)
+
+  // 4. Drive the LED (sees this loop's bends)
   serviceBlink();       // advance the blink timing (led.ino)
   serviceLed();         // set the LED brightness (led.ino)
+
+  // 5. Housekeeping
   serviceSave();        // save the mode once it's settled (flash.ino)
   watchdogFeed();       // still running: restart the watchdog countdown (watchdog.ino)
 }
