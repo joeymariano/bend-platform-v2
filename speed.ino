@@ -23,7 +23,7 @@ unsigned long speedActiveAt = 0;   // millis() of the last button activity in sp
 // -------------------------------------------------------------------------------------
 void setSpeedSteps(int n) {
   speedSteps = constrain(n, -SPEED_MAX_STEPS, SPEED_MAX_STEPS);
-  tremSpeed = powf(SPEED_STEP, speedSteps);
+  clockSpeed = powf(SPEED_STEP, speedSteps);
 }
 
 // -------------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ void setSpeedSteps(int n) {
 void toggleSpeedMode() {
   speedMode = !speedMode;
   if (speedMode) {
-    tremStart = millis();       // the pulse starts fresh
+    clockStart = millis();       // the pulse starts fresh
     speedActiveAt = millis();   // the timeout starts now
   } else {
     saveIfChanged();            // flash.ino
@@ -45,7 +45,7 @@ void toggleSpeedMode() {
 
 #if LOG
   Serial.print(speedMode ? "SPEED mode ON, " : "SPEED mode OFF, ");
-  Serial.print(tremSpeed, 2); Serial.println("x");
+  Serial.print(clockSpeed, 2); Serial.println("x");
 #endif
 }
 
@@ -59,12 +59,12 @@ void speedButton(int idx, ButtonEdge edge) {
 
   int dir = (idx == 0) ? -1 : +1;
   setSpeedSteps(speedSteps + dir);
-  tremStart = millis();   // restart the pulse, so the new speed shows at once
+  clockStart = millis();   // restart the pulse, so the new speed shows at once
 
 #if LOG
   Serial.print("BTN-"); Serial.print(idx + 1);
   Serial.print(dir < 0 ? " -> slower, " : " -> faster, ");
-  Serial.print(tremSpeed, 2); Serial.println("x");
+  Serial.print(clockSpeed, 2); Serial.println("x");
 #endif
 }
 

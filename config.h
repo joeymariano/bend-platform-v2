@@ -94,7 +94,9 @@ static_assert(LED_PWM_TOP <= 2399, "LED_PWM_TOP above 2399 puts the PWM below 20
 // -------------------------------------------------------------------------------------
 //  Timings (milliseconds)
 // -------------------------------------------------------------------------------------
-const unsigned long DEBOUNCE_MS    = 50;   // raise if a press counts twice
+const unsigned long BTN_CONFIRM_MS = 2;    // a change must hold this long to count
+const unsigned long DEBOUNCE_MS    = 50;   // then the button is ignored this long while it
+                                           // bounces. Raise if a press counts twice.
 const unsigned long LONG_PRESS_MS  = 2000; // hold MODE this long: speed mode in/out
 const unsigned long SPEED_TIMEOUT_MS = 30000; // leave speed mode after this long with no
                                               // button pressed or held
@@ -106,6 +108,8 @@ const unsigned long MODE_SAVE_MS   = 3000; // save the mode once it's been left 
 const unsigned long TREM_MS        = 60;   // momentary-trem: on 60, off 60 (about 8 Hz)
 const unsigned long LATCH_TREM_MS  = 100;  // latching-trem: on 100, off 100 (5 Hz)
 const unsigned long SEQ_STEP_MS    = 150;  // sequencer: time per step
+static_assert(TREM_MS >= 4 && LATCH_TREM_MS >= 4 && SEQ_STEP_MS >= 4,
+              "clock timings must be at least 4 ms, so the top speed (3.8x) stays above 1 ms");
                                            // (all at normal speed; see Speed mode below)
 
 // -------------------------------------------------------------------------------------
@@ -186,6 +190,7 @@ struct Button {
   unsigned long lastChange;  // millis() when the raw reading last changed
   bool down;                 // debounced: true = pressed
   unsigned long downSince;   // millis() when the current press began
+  unsigned long lastEdge;    // millis() of the last press or release that counted
   ButtonEdge edge;           // this loop's edge, set by readButtons()
 };
 
@@ -196,7 +201,7 @@ struct Bend {
   uint8_t gate;              // output pin to this bend's Q gate
   bool latched;              // latching modes: toggled on?
   bool on;                   // is the gate on this loop? (set by setBend)
-  bool stuttering;           // following the stutter clock this loop? (set by setBend)
+  bool clocked;              // following the shared clock this loop? (set by setBend)
 };
 
 // What's kept in flash between power-ups (flash.ino). 32-bit fields only: flash is

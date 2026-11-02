@@ -60,27 +60,27 @@
 //  Global state (shared across tabs)
 // -------------------------------------------------------------------------------------
 
-// Fields: { { button pin, lastRead, lastChange, down, downSince, edge }, gate pin, latched, on, stuttering }
+// Fields: { { button pin, lastRead, lastChange, down, downSince, lastEdge, edge }, gate pin, latched, on, clocked }
 // lastRead starts HIGH: a released button reads HIGH with INPUT_PULLUP.
 Bend bends[NUM_BENDS] = {
-  { { BTN1_PIN, HIGH, 0, false, 0, BTN_NONE }, BEND1_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
-  { { BTN2_PIN, HIGH, 0, false, 0, BTN_NONE }, BEND2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
+  { { BTN1_PIN, HIGH, 0, false, 0, 0, BTN_NONE }, BEND1_GATE, false, false, false },  // BTN-1 -> Q3 -> CD4066 A -> BND-1
+  { { BTN2_PIN, HIGH, 0, false, 0, 0, BTN_NONE }, BEND2_GATE, false, false, false },  // BTN-2 -> Q2 -> CD4066 B -> BND-2
 };
 
-Button modeBtn = { MODE_PIN, HIGH, 0, false, 0, BTN_NONE };
+Button modeBtn = { MODE_PIN, HIGH, 0, false, 0, 0, BTN_NONE };
 int mode = MOMENTARY;                            // current bend mode (1..NUM_MODES)
 
-// One stutter clock shared by the bends and the LED, so they stay in sync.
-unsigned long tremStart = 0;     // millis() when the current stutter began
-bool tremRunning = false;        // was any bend following the clock on the previous loop?
-float tremSpeed = 1.0;           // clock speed multiplier, set in speed mode
-int speedSteps = 0;              // tremSpeed in steps from normal: - slower, + faster
+// One clock shared by the bends (stutter and sequencer) and the LED, so they stay in sync.
+unsigned long clockStart = 0;    // millis() when the clock started
+bool clockRunning = false;       // was any bend following the clock on the previous loop?
+float clockSpeed = 1.0;          // clock speed multiplier, set in speed mode
+int speedSteps = 0;              // clockSpeed in steps from normal: - slower, + faster
 
 bool speedMode = false;          // true while in speed mode (speed.ino)
 
 // What the bends are doing this loop. Rebuilt by serviceBends(), read by led.ino.
 bool anyEngaged = false;         // at least one bend is on
-bool anyStuttering = false;      // at least one bend is stuttering
+bool anyClocked = false;         // at least one bend follows the clock
 
 // -------------------------------------------------------------------------------------
 //  setup()  -  runs once at power-up

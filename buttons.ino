@@ -3,7 +3,9 @@
 // =====================================================================================
 //
 //  A button's contacts chatter for a few ms when pressed, so one press can read as
-//  several. readButton() only trusts a reading that has held for DEBOUNCE_MS.
+//  several. readButton() acts on a change once it has held for BTN_CONFIRM_MS (2 ms,
+//  enough to ignore a noise spike), then ignores the button for DEBOUNCE_MS while the
+//  contacts settle. So a press registers within ~2 ms, not after the bounce is over.
 //
 // =====================================================================================
 
@@ -29,19 +31,21 @@ void readButtons() {
 ButtonEdge readButton(Button &b) {
   int r = digitalRead(b.pin);
 
-  // Any change, real or bounce, restarts the settle timer.
+  // Any raw change, real or bounce, restarts the confirm timer.
   if (r != b.lastRead) {
     b.lastRead = r;
     b.lastChange = millis();
   }
 
-  // Trust the reading once it has held. (Unsigned subtraction survives millis() wrapping.)
-  if (millis() - b.lastChange <= DEBOUNCE_MS) return BTN_NONE;
-
   bool nowDown = (r == LOW);         // LOW = pressed
   if (nowDown == b.down) return BTN_NONE;
 
+  // (Unsigned subtraction survives millis() wrapping.)
+  if (millis() - b.lastChange < BTN_CONFIRM_MS) return BTN_NONE;   // not held long enough yet
+  if (millis() - b.lastEdge < DEBOUNCE_MS)      return BTN_NONE;   // still bouncing from the last edge
+
   b.down = nowDown;
+  b.lastEdge = millis();
   if (nowDown) b.downSince = b.lastChange;   // when the contacts closed
   return nowDown ? BTN_PRESS : BTN_RELEASE;
 }
@@ -49,11 +53,11 @@ ButtonEdge readButton(Button &b) {
 // -------------------------------------------------------------------------------------
 //  pressLength(b)  -  how long the button has been down so far (ms)
 // -------------------------------------------------------------------------------------
-//  After BTN_RELEASE: how long the press lasted. lastChange is then the moment the
-//  contacts opened, and downSince the moment they closed.
+//  After BTN_RELEASE: how long the press lasted. lastEdge is then the moment the
+//  release counted, and downSince the moment the contacts closed.
 // -------------------------------------------------------------------------------------
 unsigned long pressLength(const Button &b) {
-  return (b.down ? millis() : b.lastChange) - b.downSince;
+  return (b.down ? millis() : b.lastEdge) - b.downSince;
 }
 
 // -------------------------------------------------------------------------------------

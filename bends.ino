@@ -3,7 +3,7 @@
 // =====================================================================================
 //
 //  Reads:  `mode`, `speedMode`, each bend's button (already read by readButtons())
-//  Writes: the bend gates, the stutter clock, anyEngaged / anyStuttering
+//  Writes: the bend gates, the stutter clock, anyEngaged / anyClocked
 //
 //  In speed mode the bends keep running, so you hear the new speed at once. Their
 //  buttons set the speed (speed.ino) and don't toggle a latch.
@@ -11,44 +11,45 @@
 // =====================================================================================
 
 // -------------------------------------------------------------------------------------
-//  setBend(b, on, stuttering)  -  the only place that sets what a bend is doing
+//  setBend(b, on, clocked)  -  the only place that sets what a bend is doing
 // -------------------------------------------------------------------------------------
 //  Records it for this loop (led.ino reads it) and writes the gate, using
 //  BEND_ON / BEND_OFF for the board's polarity.
 // -------------------------------------------------------------------------------------
-void setBend(Bend &b, bool on, bool stuttering) {
+void setBend(Bend &b, bool on, bool clocked) {
   b.on = on;
-  b.stuttering = stuttering;
+  b.clocked = clocked;
   digitalWrite(b.gate, on ? BEND_ON : BEND_OFF);
 }
 
 // -------------------------------------------------------------------------------------
-//  tremInterval()  -  stutter half-period (or sequencer step) in ms, for the current mode
+//  clockInterval()  -  stutter half-period (or sequencer step) in ms, for the current mode
 // -------------------------------------------------------------------------------------
 //  The bends and the LED both use this, so they always agree on the speed.
-//  tremSpeed (speed mode) scales it: 2.0 = twice as fast = half the interval.
+//  clockSpeed (speed mode) scales it: 2.0 = twice as fast = half the interval.
 // -------------------------------------------------------------------------------------
-unsigned long tremInterval() {
+unsigned long clockInterval() {
   unsigned long normal = (mode == MOMENTARY_TREM) ? TREM_MS
                        : (mode == SEQUENCER)      ? SEQ_STEP_MS
                        :                            LATCH_TREM_MS;
-  return (unsigned long)(normal / tremSpeed + 0.5f);   // round to nearest ms
+  unsigned long ms = (unsigned long)(normal / clockSpeed + 0.5f);   // round to nearest ms
+  return max(1UL, ms);   // never 0: the clock divides by it
 }
 
 // -------------------------------------------------------------------------------------
-//  clockTicks()  -  how many tremInterval()s the shared stutter clock has run
+//  clockTicks()  -  how many clockInterval()s the shared stutter clock has run
 // -------------------------------------------------------------------------------------
-//  All bends share one clock (tremStart):
+//  All bends share one clock (clockStart):
 //    - The first bend to follow it starts it at tick 0.
 //    - A bend that joins later uses the same clock, so both flip together.
 //    - The LED pulse uses it too, so it lines up with the bends.
 // -------------------------------------------------------------------------------------
 unsigned long clockTicks() {
-  if (!tremRunning) {          // first to follow the clock: start it
-    tremStart = millis();
-    tremRunning = true;
+  if (!clockRunning) {          // first to follow the clock: start it
+    clockStart = millis();
+    clockRunning = true;
   }
-  return (millis() - tremStart) / tremInterval();
+  return (millis() - clockStart) / clockInterval();
 }
 
 // Is the stutter in its "on" half? Tick 0 is on, so a stutter cuts in at once.
@@ -79,13 +80,13 @@ void serviceBends() {
 
   // Sum up for led.ino.
   anyEngaged = false;
-  anyStuttering = false;
+  anyClocked = false;
   for (int i = 0; i < NUM_BENDS; i++) {
     if (bends[i].on)         anyEngaged = true;
-    if (bends[i].stuttering) anyStuttering = true;
+    if (bends[i].clocked) anyClocked = true;
   }
 
-  tremRunning = anyStuttering;
+  clockRunning = anyClocked;
 }
 
 // -------------------------------------------------------------------------------------

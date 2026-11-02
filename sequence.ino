@@ -40,7 +40,7 @@ void serviceSequence(const ButtonEdge edges[]) {
   bool playing = seqLatched || bends[1].button.down;
   int step = playing ? clockTicks() % SEQ_LEN : 0;   // the shared clock: step 1 first
 
-  // A playing bend follows the clock even on its off steps (stuttering = true), so the
+  // A playing bend follows the clock even on its off steps (clocked = true), so the
   // clock keeps running between hits.
   for (int i = 0; i < NUM_BENDS; i++) {
     setBend(bends[i], playing && SEQ_PATTERN[step][i], playing);

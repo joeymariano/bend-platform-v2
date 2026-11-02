@@ -180,8 +180,8 @@ void serviceBlink() {
 //  stutter cycle. Idle for the rest of the cycle.
 // -------------------------------------------------------------------------------------
 float tremPulseLevel() {
-  unsigned long cycle = 2 * tremInterval();                // on half + off half
-  unsigned long t = (millis() - tremStart) % cycle;        // position in the cycle
+  unsigned long cycle = 2 * clockInterval();                // on half + off half
+  unsigned long t = (millis() - clockStart) % cycle;        // position in the cycle
   float width = TREM_PULSE_WIDTH * cycle;
 
   if (t >= width) return LED_IDLE_LEVEL;   // between pulses
@@ -205,8 +205,8 @@ void serviceLed() {
   } else if (speedMode) {
     level = tremPulseLevel();                       // 3. speed mode: pulse
   } else if (isTremMode()) {
-    level = anyStuttering ? tremPulseLevel()        // 4. stuttering: pulse
-                          : LED_IDLE_LEVEL;         //    waiting
+    level = anyClocked ? tremPulseLevel()           // 4. stuttering: pulse
+                       : LED_IDLE_LEVEL;            //    waiting
   } else {
     level = anyEngaged ? LED_ACTIVE_LEVEL           // 5. bend on: full
                        : LED_IDLE_LEVEL;            // 6. waiting: dim

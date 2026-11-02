@@ -58,7 +58,7 @@ void restoreSettings() {
   saved = currentSettings();
 
 #if LOG
-  Serial.print("speed "); Serial.print(tremSpeed, 2);
+  Serial.print("speed "); Serial.print(clockSpeed, 2);
   Serial.println(found ? "x (saved)" : "x (default)");
 #endif
 }
