@@ -100,6 +100,7 @@ const unsigned long BLINK_PULSE_MS = 223;  // dark time per mode blink
 const unsigned long BLINK_GAP_MS   = 223;  // lit time between mode blinks
 const unsigned long FLASH_MS       = 40;   // dark and lit time per fast flash
 const int           FLASH_COUNT    = 5;    // fast flashes on entering/leaving speed mode
+const unsigned long MODE_SAVE_MS   = 3000; // save the mode once it's been left alone this long
 const unsigned long TREM_MS        = 60;   // momentary-trem: on 60, off 60 (about 8 Hz)
 const unsigned long LATCH_TREM_MS  = 100;  // latching-trem: on 100, off 100 (5 Hz)
                                            // (both at normal speed; see Speed mode below)
@@ -119,7 +120,7 @@ const int   SPEED_MAX_STEPS = 14;
 //  Kept in flash between power-ups. Uploading a new sketch erases them.
 //  Bump SETTINGS_VERSION whenever the Settings type changes, so old saves are ignored.
 // -------------------------------------------------------------------------------------
-const uint32_t SETTINGS_VERSION = 1;
+const uint32_t SETTINGS_VERSION = 2;   // 2: added mode
 
 // -------------------------------------------------------------------------------------
 //  Watchdog (watchdog.ino)
@@ -182,5 +183,6 @@ struct Bend {
 // written a 32-bit word at a time.
 struct Settings {
   int32_t speedSteps;        // speed mode: steps from normal speed
+  int32_t mode;              // bend mode (1..NUM_MODES)
 };
 static_assert(sizeof(Settings) % 4 == 0, "Settings must be whole 32-bit words");

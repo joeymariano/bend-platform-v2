@@ -11,7 +11,8 @@
 //    Q1              dims or darkens the device's own LED, used as a status light
 //    Q2, Q3          drive the CD4066 switches that make the bends
 //
-//  Bend modes (a short MODE press steps 1 -> 2 -> 3 -> 4 -> 1):
+//  Bend modes (a short MODE press steps 1 -> 2 -> 3 -> 4 -> 1; the last one is kept in
+//  flash between power-ups):
 //    1 momentary       bend is on while the button is held
 //    2 momentary-trem  bend stutters while the button is held
 //    3 latching        each press toggles the bend
@@ -24,9 +25,10 @@
 //    MODE press        N dark blinks for mode N (also at power-up). Blinks override the
 //                      animation; between blinks the animation shows.
 //
-//  Speed mode (long-press MODE to enter and leave; the LED flashes fast):
-//    The bends stay off and the LED pulses at the stutter speed. BTN-1 slows it down,
-//    BTN-2 speeds it up. The new speed applies to both trem modes, and is kept in flash
+//  Speed mode (long-press MODE in mode 2 or 4 to enter, again to leave; the LED
+//  flashes fast):
+//    The LED pulses at the stutter speed. BTN-1 slows it down, BTN-2 speeds it up. The
+//    bends keep running, so you hear it; presses don't toggle a latch. The new speed applies to both trem modes, and is kept in flash
 //    between power-ups.
 //
 //  Tabs:
@@ -35,7 +37,7 @@
 //    bends.ino     the four bend modes
 //    mode.ino      the MODE button: short and long press
 //    speed.ino     speed mode
-//    flash.ino     saves settings (the speed) between power-ups
+//    flash.ino     saves settings (speed and mode) between power-ups
 //    led.ino       LED dimming, blinks and flashes, bend animation
 //    watchdog.ino  resets the board if the sketch hangs
 //
@@ -61,6 +63,7 @@ int mode = MOMENTARY;                            // current bend mode (1..NUM_MO
 unsigned long tremStart = 0;     // millis() when the current stutter began
 bool tremRunning = false;        // was any bend stuttering on the previous loop?
 float tremSpeed = 1.0;           // stutter speed multiplier, set in speed mode
+int speedSteps = 0;              // tremSpeed in steps from normal: - slower, + faster
 
 bool speedMode = false;          // true while in speed mode (speed.ino)
 
@@ -94,7 +97,7 @@ void setup() {
   Serial.println("bend-platform-v2 ready");
 #endif
   logResetCause();
-  loadSpeed();            // the last saved stutter speed (speed.ino)
+  restoreSettings();      // the last saved speed and mode (flash.ino)
   logMode("mode ");
 
   startModeBlink(mode);   // blink the starting mode: shows the board is alive
@@ -111,5 +114,6 @@ void loop() {
   serviceMode();        // read MODE: next mode, or enter/leave speed mode (mode.ino)
   serviceBlink();       // advance the blink timing (led.ino)
   serviceLed();         // set the LED brightness (led.ino)
+  serviceSave();        // save the mode once it's settled (flash.ino)
   watchdogFeed();       // still running: restart the watchdog countdown (watchdog.ino)
 }

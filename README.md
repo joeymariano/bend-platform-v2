@@ -27,7 +27,8 @@ where the controller taps in; product listing:
     and blinks the device's main LED the mode number (1–4) so you can tell which mode
     you're in.
   - **Long press** (hold 2 s; it acts at the 2 s mark, no need to let go): enters or
-    leaves [speed mode](#speed-mode).
+    leaves [speed mode](#speed-mode). Entering works only in the trem modes (2 and 4);
+    leaving always works.
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Main LED
@@ -56,17 +57,22 @@ The device's own LED doubles as a status light:
 
 Sets how fast the stutter runs in both trem modes, with the LED as a guide.
 
-1. Hold MODE for 2 s. The LED flashes fast, then pulses at the current speed.
+1. In mode 2 or 4, hold MODE for 2 s. The LED flashes fast, then pulses at the current
+   speed. (In modes 1 and 3 the long press does nothing: they don't stutter.)
 2. Press and release **BTN-1** to slow it down, or **BTN-2** to speed it up. Each press is
-   10%, from about 0.26x to 3.8x. The bends stay off while you're in speed mode.
+   10%, from about 0.26x to 3.8x. The bends keep running, so you hear each change. In
+   mode 4 a latched bend stays latched: presses here set the speed, they don't toggle.
+   In mode 2 a held button still stutters its bend.
 3. Hold MODE for 2 s again. The LED flashes fast and normal play resumes at the new
    speed.
 
-The pulse shows the rate of the current mode: momentary-trem's rate in mode 2, otherwise
-latching-trem's. Short MODE presses do nothing in speed mode.
+The pulse shows the rate of the current mode: momentary-trem's in mode 2, latching-trem's
+in mode 4. Short MODE presses do nothing in speed mode.
 
 The speed is saved to the SAMD21's flash when you leave speed mode (only if it changed),
-and loaded at power-up. Uploading a new sketch erases it, back to 1.0x.
+and loaded at power-up. The bend mode is saved too, 3 s after your last short MODE press,
+so it comes back in the mode you left it. Uploading a new sketch erases both, back to
+mode 1 at 1.0x.
 
 ## Pin map (Seeeduino XIAO SAMD21, Bend Platform v2 PCB)
 
@@ -130,7 +136,7 @@ MODE -> mode 3 (latching)
 BTN-1 -> bend1 latched ON
 SPEED mode ON, 1.00x
 BTN-2 -> faster, 1.10x
-speed saved
+settings saved
 SPEED mode OFF, 1.10x
 ```
 
@@ -146,7 +152,7 @@ Set `#define LOG 0` in `config.h` to compile it out.
 `loop()` feeds the SAMD21's hardware watchdog on every pass. If the sketch ever hangs
 (say, after the device is left on for a long time), the watchdog resets the board after
 about 2 s (`WDT_TIMEOUT` in `config.h`). It comes back like a fresh power-up: bends off,
-mode 1, one mode blink.
+the saved mode and speed, one mode blink.
 
 ## Code layout
 
@@ -160,7 +166,7 @@ The sketch is split into Arduino IDE tabs:
 | `bends.ino` | Drives the two bends in each of the four modes |
 | `mode.ino` | MODE button: short press steps the modes, long press toggles speed mode |
 | `speed.ino` | Speed mode: BTN-1 / BTN-2 set the stutter speed |
-| `flash.ino` | Saves settings (the speed) to flash between power-ups |
+| `flash.ino` | Saves settings (speed and mode) to flash between power-ups |
 | `led.ino` | Main LED: ultrasonic PWM, blinks and flashes, bend animation |
 | `watchdog.ino` | Hardware watchdog: resets the board if the sketch hangs |
 

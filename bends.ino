@@ -5,7 +5,8 @@
 //  Reads:  `mode`, `speedMode`, each bend's button
 //  Writes: the bend gates, the stutter clock, anyEngaged / anyStuttering
 //
-//  In speed mode the bends stay off and their buttons set the speed (speed.ino).
+//  In speed mode the bends keep running, so you hear the new speed at once. Their
+//  buttons set the speed (speed.ino) and don't toggle a latch.
 //
 // =====================================================================================
 
@@ -63,11 +64,10 @@ void serviceBends() {
     ButtonEdge edge = readButton(b.button);   // also updates b.button.down
 
     if (speedMode) {
-      speedButton(i, edge);        // the button sets the speed instead (speed.ino)
-      setBend(b, false, false);    // bends stay off
-    } else {
-      serviceBend(b, edge, i);
+      speedButton(i, edge);   // the press sets the speed (speed.ino)...
+      edge = BTN_NONE;        // ...so the bend doesn't see it: no latch toggle
     }
+    serviceBend(b, edge, i);
 
     if (b.on)         anyEngaged = true;
     if (b.stuttering) anyStuttering = true;

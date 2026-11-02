@@ -1,6 +1,12 @@
 // =====================================================================================
-//  flash.ino  -  keep Settings in flash between power-ups
+//  flash.ino  -  keep Settings (speed + mode) in flash between power-ups
 // =====================================================================================
+//
+//  When each setting is saved:
+//    speed   on leaving speed mode (speed.ino)
+//    mode    MODE_SAVE_MS after the last short MODE press, so tapping through the
+//            modes writes the flash once, not once per tap
+//  Either way, only if something changed.
 //
 //  The SAMD21 has no EEPROM, so this saves into the last row of its program flash. The
 //  sketch is a small fraction of the 256 KB, so its code never reaches that row.
@@ -28,6 +34,59 @@ const uint32_t SAVE_MAGIC  = 0x42454E44 + SETTINGS_VERSION;   // "BEND" + versio
 
 const int RECORD_WORDS = 1 + sizeof(Settings) / 4 + 1;   // magic + Settings + check
 static_assert(RECORD_WORDS * 4 <= PAGE_BYTES, "the saved record must fit in one page");
+
+Settings saved;                     // what's in flash, so it's saved only when it changed
+unsigned long modeChangedAt = 0;    // millis() of the last mode change (mode.ino)
+
+// -------------------------------------------------------------------------------------
+//  currentSettings()  -  the live values, packed as Settings
+// -------------------------------------------------------------------------------------
+Settings currentSettings() {
+  return { speedSteps, mode };
+}
+
+// -------------------------------------------------------------------------------------
+//  restoreSettings()  -  call once in setup(): the saved speed and mode, or the defaults
+// -------------------------------------------------------------------------------------
+void restoreSettings() {
+  Settings s;
+  bool found = loadSettings(s);
+  if (found) {
+    setSpeedSteps(s.speedSteps);                            // clamps if out of range
+    if (s.mode >= 1 && s.mode <= NUM_MODES) mode = s.mode;  // else keep the default
+  }
+  saved = currentSettings();
+
+#if LOG
+  Serial.print("speed "); Serial.print(tremSpeed, 2);
+  Serial.println(found ? "x (saved)" : "x (default)");
+#endif
+}
+
+// -------------------------------------------------------------------------------------
+//  saveIfChanged()  -  save the live settings to flash, if they differ from the saved
+// -------------------------------------------------------------------------------------
+void saveIfChanged() {
+  Settings now = currentSettings();
+  if (memcmp(&now, &saved, sizeof(Settings)) == 0) return;   // unchanged: spare the flash
+
+  saveSettings(now);
+  saved = now;
+
+#if LOG
+  Serial.println("settings saved");
+#endif
+}
+
+// -------------------------------------------------------------------------------------
+//  serviceSave()  -  called once per loop: saves the mode once it's settled
+// -------------------------------------------------------------------------------------
+//  Waits out speed mode: the speed is saved on leaving it.
+// -------------------------------------------------------------------------------------
+void serviceSave() {
+  if (speedMode || mode == saved.mode) return;
+  if (millis() - modeChangedAt >= MODE_SAVE_MS) saveIfChanged();   // wrap-safe
+}
 
 // -------------------------------------------------------------------------------------
 //  loadSettings(s)  -  call once in setup(); false if nothing valid is saved

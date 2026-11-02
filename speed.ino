@@ -2,9 +2,9 @@
 //  speed.ino  -  speed mode: set how fast the stutter (and its LED pulse) runs
 // =====================================================================================
 //
-//  Long-press MODE to enter or leave (mode.ino). The LED flashes fast either way.
-//  In speed mode:
-//    - the bends stay off (bends.ino)
+//  Long-press MODE to enter (from mode 2 or 4 only) or leave (mode.ino). The LED
+//  flashes fast either way. In speed mode:
+//    - the bends keep running, at the new speed; presses don't toggle a latch (bends.ino)
 //    - the LED pulses at the current speed, as a guide (led.ino)
 //    - BTN-1 slows it down, BTN-2 speeds it up (each acts on release)
 //
@@ -12,9 +12,6 @@
 //  flash on leaving speed mode, and loaded at power-up (flash.ino).
 //
 // =====================================================================================
-
-int speedSteps = 0;   // steps from normal speed: negative = slower, positive = faster
-int savedSteps = 0;   // what's in flash, so it's saved only when it changed
 
 // -------------------------------------------------------------------------------------
 //  setSpeedSteps(n)  -  the only place that sets the speed
@@ -25,43 +22,13 @@ void setSpeedSteps(int n) {
 }
 
 // -------------------------------------------------------------------------------------
-//  loadSpeed()  -  call once in setup(): the last saved speed, or 1.0x
-// -------------------------------------------------------------------------------------
-void loadSpeed() {
-  Settings s;
-  bool found = loadSettings(s);
-  if (found) setSpeedSteps(s.speedSteps);   // out of range? setSpeedSteps clamps it
-  savedSteps = speedSteps;
-
-#if LOG
-  Serial.print("speed "); Serial.print(tremSpeed, 2);
-  Serial.println(found ? "x (saved)" : "x (default)");
-#endif
-}
-
-// -------------------------------------------------------------------------------------
-//  saveSpeed()  -  save the speed to flash, if it changed
-// -------------------------------------------------------------------------------------
-void saveSpeed() {
-  if (speedSteps == savedSteps) return;   // unchanged: spare the flash
-
-  Settings s = { speedSteps };
-  saveSettings(s);
-  savedSteps = speedSteps;
-
-#if LOG
-  Serial.println("speed saved");
-#endif
-}
-
-// -------------------------------------------------------------------------------------
 //  toggleSpeedMode()  -  enter or leave speed mode
 // -------------------------------------------------------------------------------------
 //  Leaving saves the speed first, so the flash write doesn't eat into the fast flash.
 // -------------------------------------------------------------------------------------
 void toggleSpeedMode() {
   speedMode = !speedMode;
-  if (!speedMode) saveSpeed();
+  if (!speedMode) saveIfChanged();  // flash.ino
   tremStart = millis();   // the pulse starts fresh
   startFastFlash();       // led.ino
 

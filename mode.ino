@@ -4,7 +4,9 @@
 //
 //  short press   acts on release: next bend mode (ignored in speed mode)
 //  long press    acts the moment it reaches LONG_PRESS_MS, still held: enter or leave
-//                speed mode (speed.ino). The release that follows does nothing.
+//                speed mode (speed.ino). Enter only from a trem mode (2 or 4), since
+//                the speed is the stutter's; leave from anywhere. The release that
+//                follows does nothing.
 //
 // =====================================================================================
 
@@ -18,7 +20,8 @@ void serviceMode() {
 
   if (modeBtn.down && !modeLongDone && pressLength(modeBtn) >= LONG_PRESS_MS) {
     modeLongDone = true;
-    toggleSpeedMode();
+    if (speedMode || isTremMode()) toggleSpeedMode();   // leave from any mode, enter from 2 or 4
+    else logMode("speed mode is for the trem modes, not mode ");
   }
 
   if (edge == BTN_RELEASE) {
@@ -34,6 +37,7 @@ void serviceMode() {
 // -------------------------------------------------------------------------------------
 void nextMode() {
   mode = (mode % NUM_MODES) + 1;   // 1 -> 2 -> 3 -> 4 -> 1
+  modeChangedAt = millis();        // saved once it settles (flash.ino)
   startModeBlink(mode);
   logMode("MODE -> mode ");
 }
