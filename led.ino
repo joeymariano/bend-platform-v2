@@ -5,11 +5,12 @@
 //  Q1 can pull the device's LED to ground. Switching it fast (PWM) sets any brightness.
 //
 //  What the LED shows, highest priority first:
-//    1. blinks        N dark blinks for mode N, or the fast flash for speed mode
-//    2. speed mode    the trem pulse, nonstop, at the current speed
-//    3. trem modes    a soft pulse at the start of each stutter cycle
-//    4. other modes   full while either bend is on
-//    5. waiting       dim (LED_IDLE_LEVEL)
+//    1. sweep         sawtooth ramps, entering or leaving speed mode
+//    2. blinks        N dark blinks for mode N
+//    3. speed mode    the trem pulse, nonstop, at the current speed
+//    4. trem modes    a soft pulse at the start of each stutter cycle
+//    5. other modes   full while either bend is on
+//    6. waiting       dim (LED_IDLE_LEVEL)
 //
 //  Mode blink for mode 3 (# = dark, . = animation):
 //
@@ -17,7 +18,11 @@
 //      |-| BLINK_PULSE_MS
 //         |-| BLINK_GAP_MS
 //
-//  The fast flash is the same, with FLASH_COUNT blinks of FLASH_MS each.
+//  Speed mode sweep: SWEEP_COUNT ramps of SWEEP_MS, full contrast, so it can't be
+//  mistaken for a mode blink. Ramps up going in, down coming out:
+//
+//      entering:  full |    /|    /|              leaving:  full | |\    |\
+//                 dark |_/   |_/   |__ animation            dark |_|  \_|   \__ animation
 //
 //  Trem pulse over one stutter cycle:
 //
@@ -30,6 +35,11 @@
 // =====================================================================================
 
 #include "wiring_private.h"   // pinPeripheral()
+
+// Sweep state (speed mode in/out).
+bool sweepActive = false;        // a sweep is playing
+bool sweepRising = true;         // ramps go up (entering) or down (leaving)
+unsigned long sweepStart = 0;    // millis() when the sweep began
 
 // Blink state.
 int blinkRemaining = 0;          // blinks left, including the one in progress
@@ -112,6 +122,7 @@ void setLedBrightness(float b) {
 //  startBlink(count, darkMs, litMs)  -  start (or restart) `count` dark blinks, now
 // -------------------------------------------------------------------------------------
 void startBlink(int count, unsigned long darkMs, unsigned long litMs) {
+  sweepActive = false;             // the latest signal wins
   blinkRemaining = count;
   blinkDarkMs = darkMs;
   blinkLitMs = litMs;
@@ -124,19 +135,32 @@ void startModeBlink(int count) {
   startBlink(count, BLINK_PULSE_MS, BLINK_GAP_MS);
 }
 
-// Fast flash: entering or leaving speed mode.
-void startFastFlash() {
-  startBlink(FLASH_COUNT, FLASH_MS, FLASH_MS);
+// Sweep: entering (rising = true) or leaving speed mode.
+void startSweep(bool rising) {
+  blinkRemaining = 0;              // the latest signal wins
+  blinkPulsing = false;
+  sweepActive = true;
+  sweepRising = rising;
+  sweepStart = millis();
+}
+
+// Sweep brightness right now: a ramp, restarting every SWEEP_MS.
+float sweepLevel() {
+  float phase = ((millis() - sweepStart) % SWEEP_MS) / (float)SWEEP_MS;   // 0 -> 1
+  return sweepRising ? phase : 1.0f - phase;
 }
 
 // -------------------------------------------------------------------------------------
 //  serviceBlink()  -  called once per loop; only keeps time
 // -------------------------------------------------------------------------------------
+//  Sweep: ends after SWEEP_COUNT ramps.
 //  Dark: after blinkDarkMs, count one blink done and start a gap.
 //  Gap:  if blinks remain, after blinkLitMs start the next one.
 //  After the last blink the LED goes straight back to the animation.
 // -------------------------------------------------------------------------------------
 void serviceBlink() {
+  if (sweepActive && millis() - sweepStart >= SWEEP_COUNT * SWEEP_MS) sweepActive = false;
+
   if (blinkPulsing) {
     if (elapsed(blinkStamp, blinkDarkMs)) {   // blink over
       blinkPulsing = false;
@@ -174,16 +198,18 @@ float tremPulseLevel() {
 void serviceLed() {
   float level;
 
-  if (blinkPulsing) {
-    level = 0.0f;                                   // 1. blink: dark
+  if (sweepActive) {
+    level = sweepLevel();                           // 1. sweep: ramp
+  } else if (blinkPulsing) {
+    level = 0.0f;                                   // 2. blink: dark
   } else if (speedMode) {
-    level = tremPulseLevel();                       // 2. speed mode: pulse
+    level = tremPulseLevel();                       // 3. speed mode: pulse
   } else if (isTremMode()) {
-    level = anyStuttering ? tremPulseLevel()        // 3. stuttering: pulse
+    level = anyStuttering ? tremPulseLevel()        // 4. stuttering: pulse
                           : LED_IDLE_LEVEL;         //    waiting
   } else {
-    level = anyEngaged ? LED_ACTIVE_LEVEL           // 4. bend on: full
-                       : LED_IDLE_LEVEL;            // 5. waiting: dim
+    level = anyEngaged ? LED_ACTIVE_LEVEL           // 5. bend on: full
+                       : LED_IDLE_LEVEL;            // 6. waiting: dim
   }
 
   setLedBrightness(level);

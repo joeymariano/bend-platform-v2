@@ -11,41 +11,44 @@
 //    Q1              dims or darkens the device's own LED, used as a status light
 //    Q2, Q3          drive the CD4066 switches that make the bends
 //
-//  Bend modes (a short MODE press steps 1 -> 2 -> 3 -> 4 -> 1; the last one is kept in
+//  Bend modes (a short MODE press steps 1 -> 2 -> 3 -> 4 -> 5 -> 1; the last one is kept in
 //  flash between power-ups):
 //    1 momentary       bend is on while the button is held
 //    2 momentary-trem  bend stutters while the button is held
 //    3 latching        each press toggles the bend
 //    4 latching-trem   each press toggles a stuttering bend
+//    5 sequencer       plays a pattern across both bends (sequence.ino). BTN-1 starts
+//                      and stops it, BTN-2 plays it while held.
 //
 //  The LED:
 //    waiting           dim (half brightness)
-//    modes 1 and 3     full while either bend is on
+//    modes 1, 3, 5     full while either bend is on
 //    modes 2 and 4     a soft pulse in time with the stutter
 //    MODE press        N dark blinks for mode N (also at power-up). Blinks override the
 //                      animation; between blinks the animation shows.
 //
-//  Speed mode (long-press MODE in mode 2 or 4 to enter, again to leave; the LED
-//  flashes fast):
+//  Speed mode (long-press MODE in mode 2, 4 or 5 to enter, again to leave; the LED
+//  ramps up twice going in, down twice coming out):
 //    The LED pulses at the stutter speed. BTN-1 slows it down, BTN-2 speeds it up. The
-//    bends keep running, so you hear it; presses don't toggle a latch. The new speed applies to both trem modes, and is kept in flash
+//    bends keep running, so you hear it; presses don't toggle a latch. The new speed applies to modes 2, 4 and 5, and is kept in flash
 //    between power-ups.
 //
 //  Each loop() pass runs in five stages:
 //    1 read      sample every button once
 //    2 decide    MODE: change the mode, enter/leave speed mode
 //    3 bends     drive the bend gates (or set the speed)
-//    4 LED       blinks, flashes and the bend animation
+//    4 LED       blinks, sweeps and the bend animation
 //    5 upkeep    save settings, feed the watchdog
 //
 //  Tabs:
 //    config.h      pins, polarity, timings, debug flag, types (settings live here)
 //    buttons.ino   reads the buttons (debounced) + the elapsed() timer
-//    bends.ino     the four bend modes
+//    bends.ino     bend modes 1-4
+//    sequence.ino  bend mode 5: the step sequencer (a template for your own mode)
 //    mode.ino      the MODE button: short and long press
 //    speed.ino     speed mode
 //    flash.ino     saves settings (speed and mode) between power-ups
-//    led.ino       LED dimming, blinks and flashes, bend animation
+//    led.ino       LED dimming, blinks and sweeps, bend animation
 //    watchdog.ino  resets the board if the sketch hangs
 //
 // =====================================================================================
@@ -68,8 +71,8 @@ int mode = MOMENTARY;                            // current bend mode (1..NUM_MO
 
 // One stutter clock shared by the bends and the LED, so they stay in sync.
 unsigned long tremStart = 0;     // millis() when the current stutter began
-bool tremRunning = false;        // was any bend stuttering on the previous loop?
-float tremSpeed = 1.0;           // stutter speed multiplier, set in speed mode
+bool tremRunning = false;        // was any bend following the clock on the previous loop?
+float tremSpeed = 1.0;           // clock speed multiplier, set in speed mode
 int speedSteps = 0;              // tremSpeed in steps from normal: - slower, + faster
 
 bool speedMode = false;          // true while in speed mode (speed.ino)

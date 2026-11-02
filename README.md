@@ -2,6 +2,7 @@
 
 ![Bend Platform v2 PCB render](docs/layouts-schematics/3D_PCB1_2026-10-15.png)
 ![Internal Mod example](docs/final-mod%2Bwiring/mod.jpeg)
+![Schematic](docs/layouts-schematics/SCH_Schematic1_1-P1_2026-10-14.png)
 
 Adds physical buttons to a device (a guitar fuzz/distortion pedal, for
 example) that open and close circuit "bends" in a musical way. A Seeeduino XIAO
@@ -24,12 +25,12 @@ where the controller taps in; product listing:
 ## Controls
 
 - **MODE button**
-  - **Short press** (acts on release): cycles through the four bend modes (1 → 2 → 3 → 4 →)
-    and blinks the device's main LED the mode number (1–4) so you can tell which mode
-    you're in.
+  - **Short press** (acts on release): cycles through the five bend modes
+    (1 → 2 → 3 → 4 → 5 →) and blinks the device's main LED the mode number (1–5) so you
+    can tell which mode you're in.
   - **Long press** (hold 2 s; it acts at the 2 s mark, no need to let go): enters or
-    leaves [speed mode](#speed-mode). Entering works only in the trem modes (2 and 4);
-    leaving always works.
+    leaves [speed mode](#speed-mode). Entering works only in the modes with a clock (2, 4
+    and 5); leaving always works.
 - **BTN-1 / BTN-2** — work the two bends according to the current mode.
 
 ### Main LED
@@ -37,12 +38,14 @@ where the controller taps in; product listing:
 The device's own LED doubles as a status light:
 
 - **Waiting:** dim (about half brightness, set by `LED_IDLE_LEVEL`).
-- **Momentary / latching:** full brightness while either bend is engaged.
+- **Momentary / latching / sequencer:** full brightness while either bend is engaged, so
+  in mode 5 the LED follows the pattern.
 - **Momentary-trem / latching-trem:** while a bend stutters, the LED does a soft,
   sine-rounded pulse once per stutter cycle (25% wide), locked to the stutter. Both bends
   share one stutter clock, so they always flip together.
 - **MODE press:** dark blinks, one per mode number. These win over the animation.
-- **Speed mode:** five quick dark flashes going in and coming out. In between, a nonstop
+- **Speed mode:** a full dark-to-bright sawtooth, twice: ramping up going in, ramping
+  down coming out, so it can't be mistaken for a mode blink. In between, a nonstop
   pulse at the current stutter speed.
 
 ### Modes
@@ -53,22 +56,35 @@ The device's own LED doubles as a status light:
 | 2 | momentary tremolo | bend stutters while the button is held       |
 | 3 | latching          | press toggles the bend on/off                |
 | 4 | latching tremolo  | press toggles a stuttering bend on/off       |
+| 5 | chaos sequencer   | BTN-1 starts/stops a looping pattern across both bends; BTN-2 plays it while held |
+
+Mode 5's default pattern, one step every 150 ms (`SEQ_STEP_MS`):
+
+```
+step:    1      2      3        4
+bend 1   .      .      ON       .
+bend 2   .      ON     ON       ON
+```
+
+It's an example: see [Make it yours](#make-it-yours).
 
 ### Speed mode
 
-Sets how fast the stutter runs in both trem modes, with the LED as a guide.
+Sets how fast the stutter runs in both trem modes, and how fast the sequencer steps,
+with the LED as a guide.
 
-1. In mode 2 or 4, hold MODE for 2 s. The LED flashes fast, then pulses at the current
-   speed. (In modes 1 and 3 the long press does nothing: they don't stutter.)
+1. In mode 2, 4 or 5, hold MODE for 2 s. The LED ramps up twice, then pulses at the current
+   speed. (In modes 1 and 3 the long press does nothing: they have no clock.)
 2. Press and release **BTN-1** to slow it down, or **BTN-2** to speed it up. Each press is
    10%, from about 0.26x to 3.8x. The bends keep running, so you hear each change. In
-   mode 4 a latched bend stays latched: presses here set the speed, they don't toggle.
-   In mode 2 a held button still stutters its bend.
-3. Hold MODE for 2 s again. The LED flashes fast and normal play resumes at the new
+   modes 4 and 5 a running bend or pattern keeps running: presses here set the speed,
+   they don't toggle. In mode 2 a held button still stutters its bend.
+3. Hold MODE for 2 s again. The LED ramps down twice and normal play resumes at the new
    speed.
 
 The pulse shows the rate of the current mode: momentary-trem's in mode 2, latching-trem's
-in mode 4. Short MODE presses do nothing in speed mode.
+in mode 4, the step rate (one pulse per two steps) in mode 5. One speed setting covers all
+three. Short MODE presses do nothing in speed mode.
 
 The speed is saved to the SAMD21's flash when you leave speed mode (only if it changed),
 and loaded at power-up. The bend mode is saved too, 3 s after your last short MODE press,
@@ -163,13 +179,64 @@ The sketch is split into Arduino IDE tabs:
 |---|---|
 | `bend-platform-v2.ino` | Overview, global state, `setup()`, `loop()` |
 | `config.h` | Pins, bend/LED polarity, timings, `LOG` flag, types. Settings live here. |
-| `buttons.ino` | Debounced button reading, `elapsed()` timer helper |
-| `bends.ino` | Drives the two bends in each of the four modes |
+| `buttons.ino` | Reads every button once per loop (debounced), `elapsed()` timer helper |
+| `bends.ino` | Drives the two bends in modes 1–4 |
+| `sequence.ino` | Mode 5: the step sequencer, and a template for your own mode |
 | `mode.ino` | MODE button: short press steps the modes, long press toggles speed mode |
-| `speed.ino` | Speed mode: BTN-1 / BTN-2 set the stutter speed |
+| `speed.ino` | Speed mode: BTN-1 / BTN-2 set the stutter / step speed |
 | `flash.ino` | Saves settings (speed and mode) to flash between power-ups |
-| `led.ino` | Main LED: ultrasonic PWM, blinks and flashes, bend animation |
+| `led.ino` | Main LED: ultrasonic PWM, mode blinks, speed-mode sweeps, bend animation |
 | `watchdog.ino` | Hardware watchdog: resets the board if the sketch hangs |
+
+Each pass of `loop()` runs in five stages: read every button, decide (mode and speed
+mode), drive the bends, drive the LED, then housekeeping (save settings, feed the
+watchdog).
+
+## Make it yours
+
+This board is a platform. Your bends and your modes are what make the instrument yours,
+so go and find them.
+
+### Program your own mode
+
+Mode 5 is there to be copied. To start, edit `SEQ_PATTERN` in `config.h`: one row per
+step, `{ bend 1, bend 2 }`, as many rows as you like. Change `SEQ_STEP_MS` for the tempo.
+Odd lengths, long silences, a rhythm from a song you like: try things.
+
+To add a whole new mode (mode 6 and up):
+
+1. Add it to `enum Mode` and `MODE_NAMES` in `config.h`. It gets the next number, and
+   the LED blinks that many times when you select it.
+2. Write a service function for it in a new tab, like `serviceSequence()` in
+   `sequence.ino`. It gets this loop's button edges. Set the bends only through
+   `setBend()`, so the LED and the shared clock stay in sync. `clockTicks()` gives you the
+   shared clock, and speed mode can scale it (add your mode to `usesClock()` in
+   `mode.ino`).
+3. Call it from `serviceBends()` in `bends.ino`.
+
+Some ideas: random steps, a pattern that speeds up while you hold a button, BTN-1 and
+BTN-2 playing two different patterns, a bend that fades in by stuttering faster and
+faster. If you make something good, share it.
+
+### Find your own bends
+
+A bend is two points on the device's circuit that sound interesting when joined (or,
+with a cut trace, when reconnected). The platform's CD4066 just closes that connection
+for you. [`docs/bend-locations/`](docs/bend-locations/) shows the ones used on the fuzz.
+To find your own:
+
+- Use **battery-powered devices only**. Never bend anything that plugs into mains.
+- With the device powered and playing, touch the two ends of a jumper wire (or a
+  1k–10k resistor, or a pot, for a gentler effect) between points on the board and
+  listen. Transistor legs, capacitor legs, IC pins and the feedback path between an
+  op-amp's output and input are good places to start.
+- Mark the ones you like. Keep the ones that make sound; skip any that kill it, get hot
+  or make the device reset.
+- Before wiring a point to the platform, check the [CD4066 limits](#bends-cd4066): it
+  must share ground with the platform, and the signal must stay between 0 V and 9 V, at
+  most 10 mA.
+- A series resistor or pot between the bend point and the platform's BND pads tames a
+  bend that's too harsh.
 
 ## Build
 

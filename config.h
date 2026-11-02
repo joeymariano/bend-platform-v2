@@ -96,14 +96,15 @@ static_assert(LED_PWM_TOP <= 2399, "LED_PWM_TOP above 2399 puts the PWM below 20
 // -------------------------------------------------------------------------------------
 const unsigned long DEBOUNCE_MS    = 50;   // raise if a press counts twice
 const unsigned long LONG_PRESS_MS  = 2000; // hold MODE this long: speed mode in/out
-const unsigned long BLINK_PULSE_MS = 223;  // dark time per mode blink
-const unsigned long BLINK_GAP_MS   = 223;  // lit time between mode blinks
-const unsigned long FLASH_MS       = 40;   // dark and lit time per fast flash
-const int           FLASH_COUNT    = 5;    // fast flashes on entering/leaving speed mode
+const unsigned long BLINK_PULSE_MS = 178;  // dark time per mode blink
+const unsigned long BLINK_GAP_MS   = 178;  // lit time between mode blinks
+const unsigned long SWEEP_MS       = 200;  // one brightness ramp, entering/leaving speed mode
+const int           SWEEP_COUNT    = 2;    // ramps per sweep
 const unsigned long MODE_SAVE_MS   = 3000; // save the mode once it's been left alone this long
 const unsigned long TREM_MS        = 60;   // momentary-trem: on 60, off 60 (about 8 Hz)
 const unsigned long LATCH_TREM_MS  = 100;  // latching-trem: on 100, off 100 (5 Hz)
-                                           // (both at normal speed; see Speed mode below)
+const unsigned long SEQ_STEP_MS    = 150;  // sequencer: time per step
+                                           // (all at normal speed; see Speed mode below)
 
 // -------------------------------------------------------------------------------------
 //  Speed mode (speed.ino)
@@ -145,13 +146,29 @@ enum Mode {
   MOMENTARY_TREM,    // stutters while held
   LATCHING,          // each press toggles
   LATCHING_TREM,     // each press toggles a stutter
+  SEQUENCER,         // plays SEQ_PATTERN (below) in a loop
 };
-const int NUM_MODES = LATCHING_TREM;
+const int NUM_MODES = SEQUENCER;
 
 // Log names, indexed by mode number (index 0 unused).
-const char* const MODE_NAMES[] = { "", "momentary", "momentary-trem", "latching", "latching-trem" };
+const char* const MODE_NAMES[] = { "", "momentary", "momentary-trem", "latching", "latching-trem",
+                                  "sequencer" };
 static_assert(sizeof(MODE_NAMES) / sizeof(MODE_NAMES[0]) == NUM_MODES + 1,
               "MODE_NAMES needs one name per mode, plus the unused \"\" at index 0");
+
+// -------------------------------------------------------------------------------------
+//  Mode 5: the sequencer pattern (sequence.ino)
+// -------------------------------------------------------------------------------------
+//  One row per step: { bend 1, bend 2 }, 1 = on. Each step lasts SEQ_STEP_MS (scaled by
+//  speed mode), then the pattern loops. Add, remove or change rows to make it yours.
+// -------------------------------------------------------------------------------------
+const bool SEQ_PATTERN[][NUM_BENDS] = {
+  { 0, 0 },   // no bends
+  { 0, 1 },   // bend 2
+  { 1, 1 },   // bend 1 + bend 2
+  { 0, 1 },   // bend 2
+};
+const int SEQ_LEN = sizeof(SEQ_PATTERN) / sizeof(SEQ_PATTERN[0]);
 
 // -------------------------------------------------------------------------------------
 //  Types
@@ -177,7 +194,7 @@ struct Bend {
   uint8_t gate;              // output pin to this bend's Q gate
   bool latched;              // latching modes: toggled on?
   bool on;                   // is the gate on this loop? (set by setBend)
-  bool stuttering;           // is it stuttering this loop? (set by setBend)
+  bool stuttering;           // following the stutter clock this loop? (set by setBend)
 };
 
 // What's kept in flash between power-ups (flash.ino). 32-bit fields only: flash is

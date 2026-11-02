@@ -4,8 +4,8 @@
 //
 //  short press   acts on release: next bend mode (ignored in speed mode)
 //  long press    acts the moment it reaches LONG_PRESS_MS, still held: enter or leave
-//                speed mode (speed.ino). Enter only from a trem mode (2 or 4), since
-//                the speed is the stutter's; leave from anywhere. The release that
+//                speed mode (speed.ino). Enter only from a mode with a clock (2, 4 or
+//                5), since the speed is the clock's; leave from anywhere. The release that
 //                follows does nothing.
 //
 // =====================================================================================
@@ -20,8 +20,8 @@ void serviceMode() {
 
   if (modeBtn.down && !modeLongDone && pressLength(modeBtn) >= LONG_PRESS_MS) {
     modeLongDone = true;
-    if (speedMode || isTremMode()) toggleSpeedMode();   // leave from any mode, enter from 2 or 4
-    else logMode("speed mode is for the trem modes, not mode ");
+    if (speedMode || usesClock()) toggleSpeedMode();   // leave from any mode, enter from 2, 4, 5
+    else logMode("speed mode is for modes 2, 4 and 5, not mode ");
   }
 
   if (edge == BTN_RELEASE) {
@@ -36,7 +36,7 @@ void serviceMode() {
 //  A press mid-blink restarts the blink, so quick taps only show the final mode.
 // -------------------------------------------------------------------------------------
 void nextMode() {
-  mode = (mode % NUM_MODES) + 1;   // 1 -> 2 -> 3 -> 4 -> 1
+  mode = (mode % NUM_MODES) + 1;   // 1 -> 2 -> 3 -> 4 -> 5 -> 1
   modeChangedAt = millis();        // saved once it settles (flash.ino)
   startModeBlink(mode);
   logMode("MODE -> mode ");
@@ -50,6 +50,11 @@ bool isLatchingMode() {
 // Does an active bend stutter (instead of staying on)?
 bool isTremMode() {
   return mode == MOMENTARY_TREM || mode == LATCHING_TREM;
+}
+
+// Does this mode run on the stutter clock (so speed mode can set its speed)?
+bool usesClock() {
+  return isTremMode() || mode == SEQUENCER;
 }
 
 // Logs e.g. "MODE -> mode 3 (latching)". Does nothing when LOG is 0.

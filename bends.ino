@@ -1,5 +1,5 @@
 // =====================================================================================
-//  bends.ino  -  drive each bend according to the current mode
+//  bends.ino  -  drive each bend according to the current mode (mode 5: sequence.ino)
 // =====================================================================================
 //
 //  Reads:  `mode`, `speedMode`, each bend's button (already read by readButtons())
@@ -23,54 +23,66 @@ void setBend(Bend &b, bool on, bool stuttering) {
 }
 
 // -------------------------------------------------------------------------------------
-//  tremInterval()  -  stutter half-period (ms) for the current mode
+//  tremInterval()  -  stutter half-period (or sequencer step) in ms, for the current mode
 // -------------------------------------------------------------------------------------
 //  The bends and the LED both use this, so they always agree on the speed.
 //  tremSpeed (speed mode) scales it: 2.0 = twice as fast = half the interval.
 // -------------------------------------------------------------------------------------
 unsigned long tremInterval() {
-  unsigned long normal = (mode == MOMENTARY_TREM) ? TREM_MS : LATCH_TREM_MS;
+  unsigned long normal = (mode == MOMENTARY_TREM) ? TREM_MS
+                       : (mode == SEQUENCER)      ? SEQ_STEP_MS
+                       :                            LATCH_TREM_MS;
   return (unsigned long)(normal / tremSpeed + 0.5f);   // round to nearest ms
 }
 
 // -------------------------------------------------------------------------------------
-//  tremPhaseOn()  -  is the shared stutter clock in its "on" half right now?
+//  clockTicks()  -  how many tremInterval()s the shared stutter clock has run
 // -------------------------------------------------------------------------------------
 //  All bends share one clock (tremStart):
-//    - The first bend to stutter starts the clock, on the "on" half, so it cuts in at once.
+//    - The first bend to follow it starts it at tick 0.
 //    - A bend that joins later uses the same clock, so both flip together.
 //    - The LED pulse uses it too, so it lines up with the bends.
 // -------------------------------------------------------------------------------------
-bool tremPhaseOn() {
-  if (!tremRunning) {          // first to stutter: start the clock
+unsigned long clockTicks() {
+  if (!tremRunning) {          // first to follow the clock: start it
     tremStart = millis();
     tremRunning = true;
   }
-  return ((millis() - tremStart) / tremInterval()) % 2 == 0;   // even half = on
+  return (millis() - tremStart) / tremInterval();
+}
+
+// Is the stutter in its "on" half? Tick 0 is on, so a stutter cuts in at once.
+bool tremPhaseOn() {
+  return clockTicks() % 2 == 0;
 }
 
 // -------------------------------------------------------------------------------------
 //  serviceBends()  -  called once per loop
 // -------------------------------------------------------------------------------------
-//  Acts on each bend's button edge and drives the bend, then sums up what they're doing for
-//  led.ino. Once no bend is stuttering, the clock restarts on the next stutter.
+//  Hands the button edges to speed mode or the current bend mode, then sums up what the
+//  bends are doing for led.ino. Once no bend follows the clock, it restarts next time.
 // -------------------------------------------------------------------------------------
 void serviceBends() {
+  // This loop's button edges (read by readButtons()).
+  ButtonEdge edges[NUM_BENDS];
+  for (int i = 0; i < NUM_BENDS; i++) {
+    edges[i] = bends[i].button.edge;
+    if (speedMode) {
+      speedButton(i, edges[i]);   // the press sets the speed (speed.ino)...
+      edges[i] = BTN_NONE;        // ...so the bend doesn't see it: no latch toggle
+    }
+  }
+
+  // Drive the bends: mode 5 plays its pattern, modes 1-4 drive each bend on its own.
+  if (mode == SEQUENCER) serviceSequence(edges);   // sequence.ino
+  else for (int i = 0; i < NUM_BENDS; i++) serviceBend(bends[i], edges[i], i);
+
+  // Sum up for led.ino.
   anyEngaged = false;
   anyStuttering = false;
-
   for (int i = 0; i < NUM_BENDS; i++) {
-    Bend &b = bends[i];
-    ButtonEdge edge = b.button.edge;   // read this loop by readButtons()
-
-    if (speedMode) {
-      speedButton(i, edge);   // the press sets the speed (speed.ino)...
-      edge = BTN_NONE;        // ...so the bend doesn't see it: no latch toggle
-    }
-    serviceBend(b, edge, i);
-
-    if (b.on)         anyEngaged = true;
-    if (b.stuttering) anyStuttering = true;
+    if (bends[i].on)         anyEngaged = true;
+    if (bends[i].stuttering) anyStuttering = true;
   }
 
   tremRunning = anyStuttering;

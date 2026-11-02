@@ -1,14 +1,14 @@
 // =====================================================================================
-//  speed.ino  -  speed mode: set how fast the stutter (and its LED pulse) runs
+//  speed.ino  -  speed mode: set how fast the stutter / sequencer (and LED pulse) runs
 // =====================================================================================
 //
-//  Long-press MODE to enter (from mode 2 or 4 only) or leave (mode.ino). The LED
-//  flashes fast either way. In speed mode:
+//  Long-press MODE to enter (from mode 2, 4 or 5 only) or leave (mode.ino). The LED
+//  ramps up twice going in, down twice coming out. In speed mode:
 //    - the bends keep running, at the new speed; presses don't toggle a latch (bends.ino)
 //    - the LED pulses at the current speed, as a guide (led.ino)
 //    - BTN-1 slows it down, BTN-2 speeds it up (each acts on release)
 //
-//  The speed multiplies both trem modes' rates, so they change together. It's saved to
+//  The speed multiplies the trem modes' rates and the sequencer's, so they change together. It's saved to
 //  flash on leaving speed mode, and loaded at power-up (flash.ino).
 //
 // =====================================================================================
@@ -24,13 +24,13 @@ void setSpeedSteps(int n) {
 // -------------------------------------------------------------------------------------
 //  toggleSpeedMode()  -  enter or leave speed mode
 // -------------------------------------------------------------------------------------
-//  Leaving saves the speed first, so the flash write doesn't eat into the fast flash.
+//  Leaving saves the speed first, so the flash write doesn't stall the LED sweep.
 // -------------------------------------------------------------------------------------
 void toggleSpeedMode() {
   speedMode = !speedMode;
   if (!speedMode) saveIfChanged();  // flash.ino
   tremStart = millis();   // the pulse starts fresh
-  startFastFlash();       // led.ino
+  startSweep(speedMode);  // ramps up entering, down leaving (led.ino)
 
 #if LOG
   Serial.print(speedMode ? "SPEED mode ON, " : "SPEED mode OFF, ");
