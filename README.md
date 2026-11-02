@@ -1,14 +1,14 @@
 # Bend Platform v2
 
 <p align="center">
-  <img src="docs/layouts-schematics/3D_PCB1_2026-10-15.png" alt="Bend Platform v2 PCB render" width="75%">
+  <img src="docs/layouts-schematics/3D_PCB1_2026-10-15.png" alt="Bend Platform v2 PCB render" width="100%">
 </p>
 <p align="center">
-  <img src="docs/final-mod%2Bwiring/mod.jpeg" alt="Internal mod example" width="75%">
+  <img src="docs/final-mod%2Bwiring/mod.jpeg" alt="Internal mod example" width="100%">
 </p>
 <p align="center">
-  <img src="docs/layouts-schematics/SCH_Schematic1_1-P1_2026-10-14.png" alt="Schematic" height="320">
-  <img src="docs/final-mod%2Bwiring/top-angle.jpeg" alt="Pedal example" height="320">
+  <img src="docs/layouts-schematics/SCH_Schematic1_1-P1_2026-10-14.png" alt="Schematic" height="400">
+  <img src="docs/final-mod%2Bwiring/top-angle.jpeg" alt="Pedal example" height="400">
 </p>
 
 Adds physical buttons to a device (a guitar fuzz/distortion pedal, for
