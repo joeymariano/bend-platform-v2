@@ -25,6 +25,7 @@ polarity, CD4066 limits, and power cautions.
 
 Prototyped against a **LANDTONE DIY "Build Your Own Fuzz Pedal" kit** — a through-hole,
 true-bypass fuzz/distortion in a 1590B enclosure (Volume + Drive controls, 9 V).
+LANDTONE is a subsidiary of Protaitone Music Co., Ltd.
 See [`docs/parts-data/landtone-kit/`](docs/parts-data/landtone-kit/) for kit details and
 where the controller taps in; product listing:
 [Amazon B06XQL49G8](https://www.amazon.com/dp/B06XQL49G8).
