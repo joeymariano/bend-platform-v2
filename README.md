@@ -249,6 +249,30 @@ To find your own:
 - A series resistor or pot between the bend point and the platform's BND pads tames a
   bend that's too harsh.
 
+### Buttons, footswitches or a patch bay
+
+The mod pictured uses small push buttons, but the board doesn't care what closes the
+contact. Each input (BTN-1 = D2, BTN-2 = D3, MODE = D9) just needs a switch to GND.
+
+- **Footswitches:** use **momentary** (soft-touch, normally-open SPST) footswitches. Not
+  latching ones: the firmware does its own latching, and a latching switch would read as
+  a button held down forever.
+- **A small patch bay:** put jacks on the side of the device (1/4" TS, or 3.5 mm for
+  something smaller), tip to the input pin, sleeve to GND. Then plug in external momentary
+  footswitch boxes, a sustain pedal, or anything else that closes a contact. Mix and
+  match: keep the buttons on the device and wire the jacks in parallel with them.
+- **Watch for:** some sustain pedals are normally closed (they read as pressed until you
+  step on them). Use one marked normally open, or one with a polarity switch.
+- **Cable length:** the inputs use the SAMD21's weak internal pull-ups (roughly 20–60k),
+  so a long cable acts as an antenna and can pick up noise. Wire gauge doesn't matter
+  (even thin wire is a fraction of an ohm against tens of kilohms); length and shielding
+  do. A few meters of shielded instrument cable is fine. For longer runs, add a stronger
+  pull-up (4.7k–10k from the input to the XIAO's 3.3V pin) and/or a 100 nF capacitor from
+  the input to GND at the jack. The 2 ms confirm in `readButton()` already ignores short
+  spikes.
+- **Never** connect a jack to anything that outputs a voltage (an expression pedal's
+  powered output, a CV source above 3.3 V). These pins are 3.3 V inputs.
+
 ## Build
 
 Arduino IDE or `arduino-cli`, board **Seeeduino XIAO (SAMD21)**:
