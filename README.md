@@ -3,6 +3,7 @@
 ![Bend Platform v2 PCB render](docs/layouts-schematics/3D_PCB1_2026-10-15.png)
 ![Internal Mod example](docs/final-mod%2Bwiring/mod.jpeg)
 ![Schematic](docs/layouts-schematics/SCH_Schematic1_1-P1_2026-10-14.png)
+![Pedal Example](docs/final-mod+wiring/top-angle.jpeg)
 
 Adds physical buttons to a device (a guitar fuzz/distortion pedal, for
 example) that open and close circuit "bends" in a musical way. A Seeeduino XIAO
