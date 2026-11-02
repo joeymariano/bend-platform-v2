@@ -4,7 +4,7 @@ Notes from the v2 PCB review (`bend Platform-v2.eprj`, Oct 2026).
 
 ## Hardware
 
-| | |
+| Part | Details |
 |---|---|
 | Bend switch | **CD4066BM96** analog switch (U2, LCSC C54755), control driven by an **AO3400A** (Q2/Q3) with a 10k pull-up to 9 V |
 | LED interrupt | AO3400A (Q1): gate D1, drain → **LED-** pad → device's LED+, source → GND |
